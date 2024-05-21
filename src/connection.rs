@@ -1,7 +1,8 @@
-use core::net::IpAddr;
-use std::net::TcpStream;
 use std::io::{self, Read, Write};
+use std::net::{SocketAddr, TcpStream};
+use std::time::Duration;
 
+use crate::config::Config;
 use const_format::concatcp;
 
 /// How many bytes MPD sends at once
@@ -62,11 +63,11 @@ impl MpdConnection {
 
             if data.len() > MAX_DATA_SIZE {
                 self.empty_connection();
-                
+
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    "Data size limit exceeded"
-                ))
+                    "Data size limit exceeded",
+                ));
             }
 
             if buf[SIZE_LIMIT - 1] == 0 {
@@ -81,14 +82,14 @@ impl MpdConnection {
     /// Empty out all bytes remaining in the input of the connection
     fn empty_connection(&mut self) {
         let mut buf = [0; SIZE_LIMIT];
-        
+
         while let Ok(read_amount) = self.connection.read(&mut buf) {
             if read_amount == 0 {
                 break;
             }
         }
     }
-    
+
     pub fn play(&mut self) -> io::Result<()> {
         return match self.request_data("play") {
             Ok(s) => {
@@ -161,11 +162,54 @@ impl MpdConnection {
         Ok(status)
     }
 
-    pub fn init_connection(addr: IpAddr, port: u16) -> io::Result<Self> {
-        println!("Connecting to server on ip-address: {addr} using port: {port}");
-        let mut conn = Self {
-            connection: TcpStream::connect(format!("{addr}:{port}"))?,
+    pub fn init_connection(config: &Config) -> io::Result<Self> {
+        println!(
+            "Connecting to server on ip-address: {} using port: {}",
+            config.addr, config.port
+        );
+
+        let stream = {
+            let mut attempts = 0;
+            let timeout = if config.timeout > 0 {
+                Some(Duration::from_secs(config.timeout as u64))
+            } else {
+                None
+            };
+            let addr = &SocketAddr::new(config.addr, config.port);
+
+            loop {
+                let stream = if let Some(t) = timeout {
+                    TcpStream::connect_timeout(addr, t)
+                } else {
+                    TcpStream::connect(addr)
+                };
+
+                match stream {
+                    Ok(stream) => {
+                        stream.set_read_timeout(timeout).unwrap(); // Cannot error out because Duration cannot be zero
+                        stream.set_write_timeout(timeout).unwrap();
+                        break stream;
+                    }
+                    Err(err) => {
+                        if config.retries > 0 {
+                            println!(
+                                "Could not connect (tries left {}): {err}",
+                                config.retries - attempts
+                            );
+
+                            attempts += 1;
+                            if attempts > config.retries {
+                                return Err(err);
+                            }
+                        } else {
+                            println!("Could not connect: {err}");
+                        }
+                    }
+                }
+            }
         };
+
+        let mut conn = Self { connection: stream };
 
         {
             println!("Validating connection");
@@ -174,12 +218,13 @@ impl MpdConnection {
             conn.connection.read(&mut buf)?;
             let res = match std::str::from_utf8(&buf) {
                 Ok(s) => s,
-                Err(_) => return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "MPD sent invalid UTF-8"
-                )),
+                Err(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "MPD sent invalid UTF-8",
+                    ))
+                }
             };
-
 
             if !res.starts_with("OK MPD") {
                 return Err(io::Error::new(

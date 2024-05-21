@@ -82,12 +82,8 @@ fn main() {
     if let Some(retries) = matches.get_one::<isize>("retries") { config.retries = *retries; }
     if let Some(timeout) = matches.get_one::<isize>("timeout") { config.timeout = *timeout; }
 
-    let mut conn = match MpdConnection::init_connection(config.addr, config.port) {
-        Ok(c) => c,
-        Err(e) => {
-            panic!("Could not connect to mpd server: {e}")
-        }
-    };
+    let mut conn = MpdConnection::init_connection(&config)
+        .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}"));
 }
 
 fn daemonize() {
