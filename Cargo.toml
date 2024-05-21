@@ -11,6 +11,7 @@ repository = "https://github.com/jasger9000/mpDris"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+clap = { version = "4.5.4", default-features = false, features = ["color", "error-context", "help", "std", "usage"] }
 const_format = "0.2.32"
 dbus = "0.9.7"
 serde = { version = "1.0.193", features = ["derive"] }

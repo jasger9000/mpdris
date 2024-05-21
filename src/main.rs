@@ -1,14 +1,16 @@
 mod config;
 mod connection;
 
-use std::{env, fs, io};
-use std::path::{Path, PathBuf};
+use std::env;
+use std::net::IpAddr;
+use std::path::PathBuf;
+use clap::{arg, Command, value_parser};
 
 use crate::config::Config;
 use crate::connection::MpdConnection;
 
 #[rustfmt::skip]
-const VERSION_STR: &str = concat!(env!("CARGO_BIN_NAME"), " v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
+const VERSION_STR: &str = concat!("v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
 
 fn main() {
     #[cfg(not(debug_assertions))]
@@ -30,8 +32,17 @@ fn main() {
     .iter()
     .collect();
 
-    let config = {
-        match load_config(config_path.as_path()) {
+    #[rustfmt::skip] // this gets really messy when formatted as multiline
+    let matches = Command::new(env!("CARGO_BIN_NAME"))
+        .version(VERSION_STR)
+        .about(env!("CARGO_PKG_DESCRIPTION"))
+        .arg(arg!(-p --port <PORT> "The port over which to connect to mpd").value_parser(value_parser!(u16)))
+        .arg(arg!(-a --addr <ADDRESS> "the ip address over which to connect to mpd"))
+        .arg(arg!(--"no-spawn-daemon" "When set does not try to fork into a daemon"))
+        .get_matches();
+
+    let mut config = {
+        match Config::load_config(config_path.as_path()) {
             Ok(c) => c,
             Err(err) => {
                 panic!("Error occurred while trying to read config file! {err}");
@@ -39,55 +50,14 @@ fn main() {
         }
     };
 
+    if let Some(port) = matches.get_one::<u16>("port") { config.port = *port; }
+    if let Some(addr) = matches.get_one::<IpAddr>("addr") { config.addr = *addr; }
+    let spawn_daemon = !matches.get_flag("no-spawn-daemon");
+
     let mut conn = match MpdConnection::init_connection(config.addr, config.port) {
         Ok(c) => c,
         Err(e) => {
             panic!("Could not connect to mpd server: {e}")
         }
     };
-}
-
-/// Loads the config file, if $MPD_HOST or $MPD_PORT is defined it will take its values instead of
-/// the ones specified in the config as per the MPD client specifications
-fn load_config(file: &Path) -> io::Result<Config> {
-    let mut config = {
-        if !file.exists() {
-            Config::new()
-        } else {
-            let data = fs::read_to_string(file)?;
-
-            match toml::from_str(&data) {
-                Ok(config) => config,
-                Err(err) => {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, err.message()));
-                }
-            }
-        }
-    };
-
-    if let Ok(addr) = env::var("MPD_HOST") {
-        config.addr = match addr.parse() {
-            Ok(a) => a,
-            Err(_) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "Could not parse the $MPD_HOST environment variable into a host address.",
-                ))
-            }
-        }
-    }
-
-    if let Ok(port) = env::var("MPD_PORT") {
-        config.port = match port.parse() {
-            Ok(p) => p,
-            Err(_) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "Could not parse the $MPD_PORT environment variable into an integer.",
-                ))
-            }
-        }
-    }
-
-    Ok(config)
 }

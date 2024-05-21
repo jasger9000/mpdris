@@ -55,9 +55,10 @@ impl Config {
 
     /// Loads the config file, if $MPD_HOST or $MPD_PORT is defined it will take its values instead of
     /// the ones specified in the config as per the MPD client specifications
-    fn load_config(file: &Path) -> io::Result<Self> {
+    pub fn load_config(file: &Path) -> io::Result<Self> {
         let mut config = {
             if !file.exists() {
+                eprintln!("Could not find config file. Using default values instead");
                 Self::new()
             } else {
                 let data = fs::read_to_string(file)?;
