@@ -49,6 +49,13 @@ fn main() {
             }
         }
     };
+    
+    if !config_path.is_file() {
+        match config.write(&config_path) {
+            Ok(_) => {},
+            Err(err) => eprintln!("Could not write config file: {err}"),
+        }
+    }
 
     if let Some(port) = matches.get_one::<u16>("port") { config.port = *port; }
     if let Some(addr) = matches.get_one::<IpAddr>("addr") { config.addr = *addr; }

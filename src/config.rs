@@ -27,6 +27,7 @@ impl Config {
     }
 
     pub fn write(&self, file: &Path) -> io::Result<()> {
+        println!("Writing config file to `{}`", file.to_string_lossy());
         if !file
             .parent()
             .ok_or(io::Error::new(io::ErrorKind::InvalidInput, "Path invalid"))?
@@ -34,7 +35,7 @@ impl Config {
         {
             eprintln!("Could not find parent dir, Creating...");
 
-            // Why not `create_dir_all`? Because if $HOME/.config does not exist, there's something majorly wrong with the user I dont want to handle
+            // Why not `create_dir_all`? Because if $HOME/.config does not exist, there's something majorly wrong with the user I don't want to handle
             fs::create_dir(file.parent().unwrap())?;
         }
 
@@ -43,11 +44,6 @@ impl Config {
             Err(err) => return Err(io::Error::new(ErrorKind::InvalidData, err.to_string()))
         };
 
-        eprintln!(
-            "Writing config file to `{}`",
-            file.to_str()
-                .ok_or(io::Error::new(io::ErrorKind::InvalidInput, "Path invalid"))?
-        );
         fs::write(file, data)?;
 
         Ok(())
