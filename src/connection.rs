@@ -1,11 +1,13 @@
 use core::net::IpAddr;
-use std::io::{self, ErrorKind, Read, Write};
 use std::net::TcpStream;
+use std::io::{self, Read, Write};
 
 use const_format::concatcp;
 
-/// How many bytes MPD sents at once
+/// How many bytes MPD sends at once
 const SIZE_LIMIT: usize = 1024;
+/// Maximum accepted data from one request_data() call
+const MAX_DATA_SIZE: usize = 16_384;
 
 pub struct Status {
     pub playing: bool,
@@ -37,65 +39,94 @@ pub struct MpdConnection {
 }
 
 impl MpdConnection {
-    pub fn request_data(&mut self, request: Option<&str>) -> io::Result<String> {
-        let mut data = [0; SIZE_LIMIT];
+    pub fn request_data(&mut self, request: &str) -> io::Result<String> {
+        let mut data = String::new();
+        loop {
+            let mut buf = [0; SIZE_LIMIT];
 
-        if let Some(req) = request {
-            self.connection.write(format!("{req}\n").as_bytes())?;
-        }
+            self.empty_connection();
+            self.connection.write(format!("{request}\n").as_bytes())?;
 
-        self.connection.read(&mut data)?;
-        let s = match std::str::from_utf8(&data) {
-            Ok(s) => s,
-            Err(err) => {
+            self.connection.read(&mut buf)?;
+            let s = match std::str::from_utf8(&buf) {
+                Ok(s) => s,
+                Err(err) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("Could not read response into UTF-8: {err}"),
+                    ))
+                }
+            };
+
+            data.push_str(s.trim_matches(|c| c == '\0').trim());
+
+            if data.len() > MAX_DATA_SIZE {
+                self.empty_connection();
+                
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("Could not read response into UTF-8: {err}"),
+                    "Data size limit exceeded"
                 ))
             }
-        };
 
-        Ok(String::from(s.trim_matches(|c| c == '\0').trim()))
+            if buf[SIZE_LIMIT - 1] == 0 {
+                // buffer not filled e.g. everything is read
+                break;
+            }
+        }
+
+        Ok(data)
     }
 
+    /// Empty out all bytes remaining in the input of the connection
+    fn empty_connection(&mut self) {
+        let mut buf = [0; SIZE_LIMIT];
+        
+        while let Ok(read_amount) = self.connection.read(&mut buf) {
+            if read_amount == 0 {
+                break;
+            }
+        }
+    }
+    
     pub fn play(&mut self) -> io::Result<()> {
-        return match self.request_data(Some("play")) {
+        return match self.request_data("play") {
             Ok(s) => {
                 if s == "OK" {
                     Ok(())
                 } else {
-                    Err(io::Error::new(ErrorKind::Other, "Could not play: {s}"))
+                    Err(io::Error::new(io::ErrorKind::Other, "Could not play: {s}"))
                 }
             }
-            Err(err) => { Err(err) }
-        }
+            Err(err) => Err(err),
+        };
     }
 
     pub fn pause(&mut self) -> io::Result<()> {
-        return match self.request_data(Some("pause")) {
+        return match self.request_data("pause") {
             Ok(s) => {
                 if s == "OK" {
                     Ok(())
                 } else {
-                    Err(io::Error::new(ErrorKind::Other, "Could not pause: {s}"))
+                    Err(io::Error::new(io::ErrorKind::Other, "Could not pause: {s}"))
                 }
             }
-            Err(err) => { Err(err) }
-        }
+            Err(err) => Err(err),
+        };
     }
 
     pub fn toggle_play(&mut self) -> io::Result<()> {
         let is_playing = self.get_status()?.playing;
-        
+
         if is_playing {
             return self.pause();
-        } else { 
+        } else {
             return self.play();
         }
     }
 
     pub fn get_status(&mut self) -> io::Result<Status> {
-        let res = self.request_data(Some("status")).unwrap_or(String::new());
+        let res = self.request_data("status").unwrap_or(String::new());
 
         let mut status = Status::new();
 
@@ -138,8 +169,17 @@ impl MpdConnection {
 
         {
             println!("Validating connection");
+            let mut buf = [0; 1024];
 
-            let res = conn.request_data(None)?;
+            conn.connection.read(&mut buf)?;
+            let res = match std::str::from_utf8(&buf) {
+                Ok(s) => s,
+                Err(_) => return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "MPD sent invalid UTF-8"
+                )),
+            };
+
 
             if !res.starts_with("OK MPD") {
                 return Err(io::Error::new(
@@ -150,7 +190,7 @@ impl MpdConnection {
         }
         {
             println!("Setting binary output limit to {SIZE_LIMIT} bytes");
-            let res = conn.request_data(Some(concatcp!("binarylimit ", SIZE_LIMIT)))?;
+            let res = conn.request_data(concatcp!("binarylimit ", SIZE_LIMIT))?;
 
             if res != "OK" {
                 return Err(io::Error::new(
