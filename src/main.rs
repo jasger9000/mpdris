@@ -61,26 +61,32 @@ fn main() {
         }
     }
 
-    let mut config = {
-        match Config::load_config(config_path.as_path()) {
-            Ok(c) => c,
-            Err(err) => {
-                panic!("Error occurred while trying to read config file! {err}");
-            }
+    let mut config = match Config::load_config(config_path.as_path()) {
+        Ok(c) => c,
+        Err(err) => {
+            panic!("Error occurred while trying to read config file! {err}");
         }
     };
 
     if !config_path.is_file() {
         match config.write(&config_path) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(err) => eprintln!("Could not write config file: {err}"),
         }
     }
 
-    if let Some(port) = matches.get_one::<u16>("port") { config.port = *port; }
-    if let Some(addr) = matches.get_one::<IpAddr>("addr") { config.addr = *addr; }
-    if let Some(retries) = matches.get_one::<isize>("retries") { config.retries = *retries; }
-    if let Some(timeout) = matches.get_one::<isize>("timeout") { config.timeout = *timeout; }
+    if let Some(port) = matches.get_one::<u16>("port") {
+        config.port = *port;
+    }
+    if let Some(addr) = matches.get_one::<IpAddr>("addr") {
+        config.addr = *addr;
+    }
+    if let Some(retries) = matches.get_one::<isize>("retries") {
+        config.retries = *retries;
+    }
+    if let Some(timeout) = matches.get_one::<isize>("timeout") {
+        config.timeout = *timeout;
+    }
 
     let mut conn = MpdConnection::init_connection(&config)
         .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}"));

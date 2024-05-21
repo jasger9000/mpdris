@@ -13,7 +13,11 @@ fn main() {
     let rustc_ver = match Command::new("rustc").arg("-vV").output() {
         Ok(output) => {
             let mut ver = None;
-            for line in String::from_utf8(output.stdout).expect("rustc output is utf-8").lines().skip(1) {
+            for line in String::from_utf8(output.stdout)
+                .expect("rustc output is utf-8")
+                .lines()
+                .skip(1)
+            {
                 let mut split = line.split(": ");
                 if let (Some(k), Some(v)) = (split.next(), split.next()) {
                     if k == "release" {
