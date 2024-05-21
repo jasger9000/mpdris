@@ -170,6 +170,7 @@ dependencies = [
  "clap",
  "const_format",
  "dbus",
+ "libc",
  "serde",
  "toml",
 ]

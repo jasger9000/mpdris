@@ -14,6 +14,7 @@ repository = "https://github.com/jasger9000/mpDris"
 clap = { version = "4.5.4", default-features = false, features = ["color", "error-context", "help", "std", "usage"] }
 const_format = "0.2.32"
 dbus = "0.9.7"
+libc = "0.2.155"
 serde = { version = "1.0.193", features = ["derive"] }
 toml = "0.8.13"
 
