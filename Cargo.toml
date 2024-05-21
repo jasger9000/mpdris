@@ -3,6 +3,10 @@ name = "mpDris"
 description = "A client implementing the dbus MPRIS standard for mpd"
 version = "0.1.0"
 edition = "2021"
+authors = [ "jasger9000 | jasger_" ]
+license = "MIT"
+license-file = "LICENSE"
+repository = "https://github.com/jasger9000/mpDris"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,7 +15,6 @@ const_format = "0.2.32"
 dbus = "0.9.7"
 serde = { version = "1.0.193", features = ["derive"] }
 toml = "0.8.13"
-
 
 [profile.release]
 strip = true
