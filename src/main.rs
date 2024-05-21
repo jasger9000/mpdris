@@ -1,15 +1,14 @@
 mod config;
 mod connection;
 
-use std::io;
+use std::{env, fs, io};
 use std::path::{Path, PathBuf};
-use std::{env, fs};
 
 use crate::config::Config;
 use crate::connection::MpdConnection;
 
 #[rustfmt::skip]
-const VERSION_STR: &str = concat!(env!("CARGO_BIN_NAME"), " v", env!("CARGO_PKG_VERSION"), '(', env!("GIT_HASH"), ')');
+const VERSION_STR: &str = concat!(env!("CARGO_BIN_NAME"), " v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
 
 fn main() {
     #[cfg(not(debug_assertions))]
