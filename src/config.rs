@@ -7,9 +7,16 @@ use std::{env, fs, io};
 #[derive(Deserialize, Serialize)]
 pub struct Config {
     #[serde(default = "default_addr")]
+    /// The IP address of MPD to connect to
     pub addr: IpAddr,
     #[serde(default = "default_port")]
+    /// The port of MPD to connect to
     pub port: u16,
+    /// Amount of time to retry to connect
+    pub retries: isize,
+    #[serde(default = "default_timeout")]
+    /// The amount of seconds to wait for an anwser from MPD in seconds
+    pub timeout: isize,
 }
 
 impl Default for Config {
@@ -23,6 +30,8 @@ impl Config {
         Self {
             addr: default_addr(),
             port: default_port(),
+            timeout: default_timeout(),
+            retries: 3,
         }
     }
 
@@ -41,7 +50,7 @@ impl Config {
 
         let data = match toml::to_string_pretty(self) {
             Ok(d) => d,
-            Err(err) => return Err(io::Error::new(ErrorKind::InvalidData, err.to_string()))
+            Err(err) => return Err(io::Error::new(ErrorKind::InvalidData, err.to_string())),
         };
 
         fs::write(file, data)?;
@@ -100,4 +109,7 @@ fn default_addr() -> IpAddr {
 }
 fn default_port() -> u16 {
     6600
+}
+fn default_timeout() -> isize {
+    5
 }

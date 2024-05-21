@@ -46,8 +46,10 @@ fn main() {
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .arg(arg!(-p --port <PORT> "The port over which to connect to mpd").value_parser(value_parser!(u16)))
         .arg(arg!(-a --addr <ADDRESS> "the ip address over which to connect to mpd"))
+        .arg(arg!(--retries <AMOUNT> "Amount of times mpDris retries to connect to mpd before exiting. Set to -1 to retry infinite times").value_parser(value_parser!(isize)))
+        .arg(arg!(--timeout <SECONDS> "Amount of seconds mpDris waits for MPD to respond. Set to -1 to wait indefinetly").value_parser(value_parser!(isize)))
         .arg(arg!(--"no-spawn-daemon" "When set does not try to fork into a daemon"))
-        .arg(arg!(--"systemd" "When set acts as a daemon without forking the process"))
+        .arg(arg!(--systemd "When set acts as a daemon without forking the process"))
         .get_matches();
 
     {
@@ -77,6 +79,8 @@ fn main() {
 
     if let Some(port) = matches.get_one::<u16>("port") { config.port = *port; }
     if let Some(addr) = matches.get_one::<IpAddr>("addr") { config.addr = *addr; }
+    if let Some(retries) = matches.get_one::<isize>("retries") { config.retries = *retries; }
+    if let Some(timeout) = matches.get_one::<isize>("timeout") { config.timeout = *timeout; }
 
     let mut conn = match MpdConnection::init_connection(config.addr, config.port) {
         Ok(c) => c,
