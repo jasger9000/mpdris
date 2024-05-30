@@ -1,20 +1,28 @@
-use std::io::{self, Read, Write};
+mod error;
+
+use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
 
 use crate::config::Config;
 use const_format::concatcp;
 
+pub use self::error::MPDResult as Result;
+pub use self::error::*;
+
 /// How many bytes MPD sends at once
 const SIZE_LIMIT: usize = 1024;
 /// Maximum accepted data from one request_data() call
 const MAX_DATA_SIZE: usize = 16_384;
 
+#[derive(Debug)]
 pub struct Status {
     pub playing: bool,
     pub volume: u8,
     pub repeat: Repeat,
     pub shuffle: bool,
+    /// elapsed time of the current song in sceonds
+    pub elapsed: usize,
 }
 
 impl Status {
@@ -24,11 +32,12 @@ impl Status {
             volume: 100,
             repeat: Repeat::OFF,
             shuffle: false,
+            elapsed: 0,
         }
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum Repeat {
     OFF = 0,
     ON = 1,
@@ -40,33 +49,28 @@ pub struct MpdConnection {
 }
 
 impl MpdConnection {
-    pub fn request_data(&mut self, request: &str) -> io::Result<String> {
+    pub fn request_data(&mut self, request: &str) -> Result<String> {
         let mut data = String::new();
         loop {
             let mut buf = [0; SIZE_LIMIT];
 
-            self.empty_connection();
             self.connection.write(format!("{request}\n").as_bytes())?;
 
             self.connection.read(&mut buf)?;
-            let s = match std::str::from_utf8(&buf) {
-                Ok(s) => s,
-                Err(err) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("Could not read response into UTF-8: {err}"),
-                    ))
-                }
-            };
+            let s = std::str::from_utf8(&buf)?;
 
             data.push_str(s.trim_matches(|c| c == '\0').trim());
 
             if data.len() > MAX_DATA_SIZE {
                 self.empty_connection();
 
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "Data size limit exceeded",
+                return Err(Error::new(
+                    ErrorKind::DataLimitExceeded,
+                    concatcp!(
+                        "Data buffer has overflown (Max size ",
+                        MAX_DATA_SIZE,
+                        " bytes)"
+                    ),
                 ));
             }
 
@@ -76,7 +80,11 @@ impl MpdConnection {
             }
         }
 
-        Ok(data)
+        if data.ends_with("OK") {
+            return Ok(data);
+        }
+
+        Err(Error::try_from_mpd(data)?)
     }
 
     /// Empty out all bytes remaining in the input of the connection
@@ -90,33 +98,43 @@ impl MpdConnection {
         }
     }
 
-    pub fn play(&mut self) -> io::Result<()> {
-        return match self.request_data("play") {
-            Ok(s) => {
-                if s == "OK" {
-                    Ok(())
-                } else {
-                    Err(io::Error::new(io::ErrorKind::Other, "Could not play: {s}"))
-                }
-            }
-            Err(err) => Err(err),
-        };
+    pub fn play(&mut self) -> Result<()> {
+        let _ = self.request_data("pause 0")?;
+
+        Ok(())
     }
 
-    pub fn pause(&mut self) -> io::Result<()> {
-        return match self.request_data("pause") {
-            Ok(s) => {
-                if s == "OK" {
-                    Ok(())
-                } else {
-                    Err(io::Error::new(io::ErrorKind::Other, "Could not pause: {s}"))
-                }
-            }
-            Err(err) => Err(err),
-        };
+    /// Seek to a position in the current song with offset in seconds
+    /// To seek relative to the current position use [Self::seek_relative]
+    pub fn seek(&mut self, offset: usize) -> Result<()> {
+        let _ = self.request_data(&format!("seekcur {offset}"))?;
+
+        Ok(())
     }
 
-    pub fn toggle_play(&mut self) -> io::Result<()> {
+    /// Seek to a position in the current song relative to the current position with offset in
+    /// seconds
+    /// To seek from the songs begin (absolute) use [Self::seek]
+    pub fn seek_relative(&mut self, offset: isize) -> Result<()> {
+        let offset: String = if offset > 0 {
+            format!("+{offset}")
+        } else {
+            offset.to_string()
+        };
+
+        let _ = self.request_data(&format!("seekcur {offset}"))?;
+
+        Ok(())
+    }
+
+    /// Pause playback
+    pub fn pause(&mut self) -> Result<()> {
+        let _ = self.request_data("pause 1")?;
+
+        Ok(())
+    }
+
+    pub fn toggle_play(&mut self) -> Result<()> {
         let is_playing = self.get_status()?.playing;
 
         if is_playing {
@@ -126,8 +144,8 @@ impl MpdConnection {
         }
     }
 
-    pub fn get_status(&mut self) -> io::Result<Status> {
-        let res = self.request_data("status").unwrap_or(String::new());
+    pub fn get_status(&mut self) -> Result<Status> {
+        let res = self.request_data("status")?;
 
         let mut status = Status::new();
 
@@ -149,6 +167,7 @@ impl MpdConnection {
                     }
                     "volume" => status.volume = v.parse().unwrap_or(0),
                     "random" => status.shuffle = v.parse().unwrap_or(0) > 0,
+                    "elapsed" => status.elapsed = v.parse().unwrap_or(0),
                     &_ => {}
                 }
             } else if line == "OK" {
@@ -162,7 +181,7 @@ impl MpdConnection {
         Ok(status)
     }
 
-    pub fn init_connection(config: &Config) -> io::Result<Self> {
+    pub fn init_connection(config: &Config) -> Result<Self> {
         println!(
             "Connecting to server on ip-address: {} using port: {}",
             config.addr, config.port
@@ -192,17 +211,17 @@ impl MpdConnection {
                     }
                     Err(err) => {
                         if config.retries > 0 {
-                            println!(
+                            eprintln!(
                                 "Could not connect (tries left {}): {err}",
                                 config.retries - attempts
                             );
 
                             attempts += 1;
                             if attempts > config.retries {
-                                return Err(err);
+                                return Err(err.into());
                             }
                         } else {
-                            println!("Could not connect: {err}");
+                            eprintln!("Could not connect: {err}");
                         }
                     }
                 }
@@ -216,20 +235,11 @@ impl MpdConnection {
             let mut buf = [0; 1024];
 
             conn.connection.read(&mut buf)?;
-            let res = match std::str::from_utf8(&buf) {
-                Ok(s) => s,
-                Err(_) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "MPD sent invalid UTF-8",
-                    ))
-                }
-            };
+            let res = std::str::from_utf8(&buf)?;
 
             if !res.starts_with("OK MPD") {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("Excepted `OK MPD {{VERSION}}` from server but got `{res}`"),
+                return Err(Error::new_string(ErrorKind::InvalidConnection,
+                    format!("Could not validate connection. Excepted `OK MPD {{VERSION}}` from server but got `{res}`"),
                 ));
             }
         }
@@ -238,9 +248,11 @@ impl MpdConnection {
             let res = conn.request_data(concatcp!("binarylimit ", SIZE_LIMIT))?;
 
             if res != "OK" {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("Excepted `OK` from server but got `{res}`"),
+                return Err(Error::new_string(
+                    ErrorKind::InvalidConnection,
+                    format!(
+                        "Could not validate connection. Excepted `OK` from server but got `{res}`"
+                    ),
                 ));
             }
         }
