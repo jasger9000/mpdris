@@ -1,9 +1,9 @@
 use std::error::Error as stdError;
-use std::fmt::{self, Display};
+use std::fmt::{self, Display, Formatter};
 use std::str::Utf8Error;
 use std::{io, usize};
 
-pub type MPDResult<T> = std::result::Result<T, Error>;
+pub type MPDResult<T> = Result<T, Error>;
 
 #[derive(Debug)]
 pub struct Error {
@@ -99,30 +99,31 @@ pub enum ErrorKind {
 //     }
 // }
 
-impl From<usize> for ErrorKind {
-    fn from(value: usize) -> Self {
+impl ErrorKind {
+    /// Tries to convert an error code returned from an MPD ACK response into its corresponding ErrorKind
+    fn from_code(value: usize) -> Option<Self> {
         use ErrorKind::*;
 
         match value {
-            1 => NotAList,
-            2 => WrongArgument,
-            3 => IncorrectPassword,
-            4 => PermissionDenied,
-            5 => UnknownCommand,
-            50 => DoesNotExist,
-            51 => PlaylistTooLarge,
-            52 => System,
-            53 => PlaylistLoad,
-            54 => CannotUpdate,
-            55 => PlayerSync,
-            56 => AlreadyExists,
-            _ => UnknownCommand,
+            1 => Some(NotAList),
+            2 => Some(WrongArgument),
+            3 => Some(IncorrectPassword),
+            4 => Some(PermissionDenied),
+            5 => Some(UnknownCommand),
+            50 => Some(DoesNotExist),
+            51 => Some(PlaylistTooLarge),
+            52 => Some(System),
+            53 => Some(PlaylistLoad),
+            54 => Some(CannotUpdate),
+            55 => Some(PlayerSync),
+            56 => Some(AlreadyExists),
+            _ => None,
         }
     }
 }
 
 impl Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.stored.fmt(f)
     }
 }
@@ -197,10 +198,7 @@ impl Error {
         use ParseState::*;
 
         if output.is_empty() {
-            return Err(ParseMPDError {
-                kind: EmptyString,
-                pos: 0,
-            });
+            return Err(ParseMPDError::new(EmptyString, 0));
         }
 
         let mut error_kind: Option<ErrorKind> = None;
@@ -217,36 +215,39 @@ impl Error {
             match state {
                 FindACK => {
                     let ack = "ACK";
-                    if chr != ack.chars().nth(i).unwrap_or(' ') {
-                        return Err(ParseMPDError {
-                            kind: NoACK,
-                            pos: i,
-                        });
+                    if let Some(ack_chr) = ack.chars().nth(i) {
+                        if chr != ack_chr {
+                            return Err(ParseMPDError::expected(ack_chr, i));
+                        }
+                    }
+                    if i == ack.chars().count() - 1 {
+                        state = FindLeftBracket;
                     }
                 }
                 FindLeftBracket => {
                     if chr == '[' {
                         state = GetErrorType;
+                    } else if chr != ' ' {
+                        return Err(ParseMPDError::expected('[', i));
                     }
                 }
                 GetErrorType => {
                     if chr == '@' {
-                        error_kind = Some(ErrorKind::from(match temp.parse::<usize>() {
+                        error_kind = ErrorKind::from_code(match temp.parse::<usize>() {
                             Ok(i) => i,
                             Err(_) => {
-                                return Err(ParseMPDError {
-                                    kind: UnexpectedSymbol,
-                                    pos: i,
-                                })
+                                return Err(ParseMPDError::number(i));
                             }
-                        }));
+                        });
+
+                        if error_kind.is_none() {
+                            return Err(ParseMPDError::new(InvalidCode, i - 1));
+                        }
+
                         temp.clear();
                         state = GetListNum;
                     } else if chr < '0' || chr > '9' {
-                        return Err(ParseMPDError {
-                            kind: UnexpectedSymbol,
-                            pos: i,
-                        });
+                        return Err(ParseMPDError::number(i));
                     } else {
                         temp.push(chr);
                     }
@@ -256,19 +257,13 @@ impl Error {
                         list_number = match temp.parse() {
                             Ok(i) => Some(i),
                             Err(_) => {
-                                return Err(ParseMPDError {
-                                    kind: UnexpectedSymbol,
-                                    pos: i,
-                                })
+                                return Err(ParseMPDError::number(i));
                             }
                         };
                         temp.clear();
                         state = FindLeftBrace;
                     } else if chr < '0' || chr > '9' {
-                        return Err(ParseMPDError {
-                            kind: UnexpectedSymbol,
-                            pos: i,
-                        });
+                        return Err(ParseMPDError::number(i));
                     } else {
                         temp.push(chr);
                     }
@@ -276,6 +271,8 @@ impl Error {
                 FindLeftBrace => {
                     if chr == '{' {
                         state = GetFailedCommand;
+                    } else if chr != ' ' {
+                        return Err(ParseMPDError::expected('{', i));
                     }
                 }
                 GetFailedCommand => {
@@ -293,22 +290,24 @@ impl Error {
             };
         }
 
-        if error_kind.is_none() || list_number.is_none() || failed_command.is_none() {
-            return Err(ParseMPDError {
-                kind: UnexpectedSymbol,
-                pos: output.chars().count(),
-            });
+        temp = temp.trim().to_string();
+
+        if error_kind.is_none() || list_number.is_none() || failed_command.is_none() || temp.is_empty() {
+            return Err(ParseMPDError::new(
+                UnexpectedSymbol,
+                output.chars().count() - 1,
+            ));
         }
 
-        Ok(Error::new_string(
-            error_kind.unwrap(),
-            format!(
-                "{}: at command {} (#{})",
-                temp.trim(),
-                failed_command.unwrap(),
-                list_number.unwrap()
-            ),
-        ))
+        Ok(Self {
+            kind: error_kind.unwrap(),
+            stored: ParsedError {
+                current_command: failed_command.unwrap(),
+                list_num: list_number.unwrap(),
+                message_text: temp,
+            }
+            .into(),
+        })
     }
 }
 
@@ -317,43 +316,71 @@ impl Error {
 /// This `struct` is created when using the [`Error::try_from_mpd`] method.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseMPDError {
-    kind: ParseMPDErrorKind,
-    pos: usize,
+    pub kind: ParseMPDErrorKind,
+    /// The character position (0 indexed) at which the parsing failed
+    pub pos: usize,
+    /// The character the parser expected to find
+    pub expected_char: Option<char>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum ParseMPDErrorKind {
+pub enum ParseMPDErrorKind {
     EmptyString,
     UnexpectedSymbol,
-    NoACK,
+    ExpectedNumber,
+    InvalidCode,
 }
 
-impl stdError for ParseMPDError {
-    fn description(&self) -> &str {
+impl Display for ParseMPDErrorKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         use ParseMPDErrorKind::*;
 
-        match self.kind {
+        f.write_str(match self {
             EmptyString => "cannot parse error from empty string",
             UnexpectedSymbol => "encountered an unexpected symbol",
-            NoACK => "String does not start with an ACK",
-        }
+            ExpectedNumber => "expected a number",
+            InvalidCode => "got invalid error code",
+        })
     }
 }
 
+impl stdError for ParseMPDError {}
+
 impl Display for ParseMPDError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.to_string().fmt(f)
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)?;
+        if let Some(chr) = self.expected_char {
+            write!(f, ", expected char '{chr}'")?;
+        }
+        write!(f, " at position {}\n", self.pos)
+        //        f.write_str(&self.output)?;
+        //        write!(f, "\n{}/\\", " ".repeat(self.pos))
     }
 }
 
 impl ParseMPDError {
-    pub fn kind(&self) -> ParseMPDErrorKind {
-        self.kind
+    fn new(kind: ParseMPDErrorKind, pos: usize) -> Self {
+        Self {
+            kind,
+            pos,
+            expected_char: None,
+        }
     }
 
-    /// Returns the character position (0 indexed) at which the parsing failed
-    pub fn at_pos(&self) -> usize {
-        self.pos
+    fn expected(char: char, pos: usize) -> Self {
+        Self {
+            kind: ParseMPDErrorKind::UnexpectedSymbol,
+            pos,
+            expected_char: Some(char),
+        }
+    }
+
+    fn number(pos: usize) -> Self {
+        Self {
+            kind: ParseMPDErrorKind::ExpectedNumber,
+            pos,
+            expected_char: None,
+        }
     }
 }
 
@@ -383,26 +410,44 @@ struct SourceError {
     source: Box<dyn stdError>,
 }
 
+#[derive(Debug)]
+struct ParsedError {
+    current_command: String,
+    list_num: usize,
+    message_text: String,
+}
+
 impl Display for StrMessageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(self.message)
     }
 }
 
 impl Display for StringMessageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(&self.message)
     }
 }
 
 impl Display for SourceError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.source.fmt(f)
+    }
+}
+
+impl Display for ParsedError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}: at command {} (#{})",
+            self.message_text, self.current_command, self.list_num
+        )
     }
 }
 
 impl stdError for StrMessageError {}
 impl stdError for StringMessageError {}
+impl stdError for ParsedError {}
 impl stdError for SourceError {
     fn source(&self) -> Option<&(dyn stdError + 'static)> {
         Some(self.source.as_ref())
