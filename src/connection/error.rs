@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use std::error::Error as stdError;
 use std::fmt::{self, Display, Formatter};
 use std::str::Utf8Error;
