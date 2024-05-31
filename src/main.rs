@@ -2,16 +2,20 @@ mod config;
 mod connection;
 
 use clap::{arg, value_parser, Command};
-use libc::{
-    sighandler_t, signal, EXIT_SUCCESS, SIGHUP, SIGTERM,
-    SIG_ERR, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
-};
+use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use std::cmp::Ordering;
 use std::env;
 use std::ffi::CString;
+use std::io;
 use std::net::IpAddr;
 use std::path::PathBuf;
 use std::process::exit;
+use std::sync::{atomic::AtomicBool, Arc};
+
+use signal_hook::consts::TERM_SIGNALS;
+use signal_hook::flag;
+use signal_hook::iterator::Signals;
+use signal_hook::low_level::emulate_default_handler;
 
 use crate::config::Config;
 use crate::connection::MpdConnection;
@@ -21,6 +25,7 @@ const VERSION_STR: &str = concat!("v", env!("CARGO_PKG_VERSION"), " (", env!("GI
 
 #[cfg(target_os = "linux")]
 fn main() {
+fn main() -> io::Result<()> {
     #[cfg(not(debug_assertions))]
     let config_path: PathBuf = {
         let mut path: PathBuf = match env::var("XDG_CONFIG_HOME") {
@@ -30,7 +35,7 @@ fn main() {
         .parse()
         .expect("Could not parse path to config directory");
 
-        path.join(["mpd", "mpDris.conf"].iter().collect())
+        path.join(["mpd", "mpDris.conf"].iter().collect::<PathBuf>())
     };
     #[cfg(debug_assertions)]
     let config_path: PathBuf = [
@@ -52,14 +57,34 @@ fn main() {
         .arg(arg!(--systemd "When set acts as a daemon without forking the process"))
         .get_matches();
 
-    {
+    // subscribe to signals
+    let mut signals = {
+        // decide wether or not we should fork
         let is_daemon = !matches.get_flag("no-spawn-daemon") || matches.get_flag("systemd");
-        let should_fork = !matches.get_flag("no-spawn-daemon");
+        let should_fork = !matches.get_flag("no-spawn-daemon") && !matches.get_flag("systemd");
 
         if should_fork {
             daemonize();
         }
-    }
+
+        let kill_now = Arc::new(AtomicBool::new(false));
+
+        for sig in TERM_SIGNALS {
+            // kill application when flag is set & signal is received
+            flag::register_conditional_shutdown(*sig, EXIT_FAILURE, Arc::clone(&kill_now))?;
+            // Sets signal after it is already handled by line above -> will instantly kill when singal is received twice
+            flag::register(*sig, Arc::clone(&kill_now))?;
+        }
+
+        let mut sigs: Vec<_> = TERM_SIGNALS.iter().collect();
+
+        // subscribe to extra signals
+        if is_daemon {
+            sigs.push(&SIGHUP);
+        }
+
+        Signals::new(sigs)?
+    };
 
     let mut config = match Config::load_config(config_path.as_path()) {
         Ok(c) => c,
@@ -88,10 +113,34 @@ fn main() {
         config.timeout = *timeout;
     }
 
+    // Main app here
+
     let mut conn = MpdConnection::init_connection(&config)
         .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}"));
+
+    let handle = signals.handle();
+    for signal in &mut signals {
+        match signal {
+            SIGHUP => {
+                println!("SIGHUP SIGHUP SIGHUP");
+            }
+            SIGQUIT => {
+                eprintln!("Received SIGQUIT, dumping core...");
+                handle.close();
+                emulate_default_handler(SIGQUIT)?;
+            }
+            _ => {
+                eprintln!("Received signal, quitting...");
+                handle.close();
+            }
+        }
+    }
+
+
+    Ok(())
 }
 
+/// Forks the currently running process, kills the parent, closes all filedescriptors and sets the working directory to /
 fn daemonize() {
     let pid = unsafe { libc::fork() };
     match pid.cmp(&0) {
