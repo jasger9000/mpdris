@@ -1,11 +1,17 @@
 mod error;
 
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use async_std::io::{BufReader, BufWriter};
+use async_std::net::TcpStream;
+use async_std::task::sleep;
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use crate::config::Config;
 use const_format::concatcp;
+use futures_util::{
+    io::{ReadHalf, WriteHalf},
+    AsyncReadExt, AsyncWriteExt,
+};
 
 pub use self::error::MPDResult as Result;
 pub use self::error::*;
@@ -21,7 +27,7 @@ pub struct Status {
     pub volume: u8,
     pub repeat: Repeat,
     pub shuffle: bool,
-    /// elapsed time of the current song in sceonds
+    /// elapsed time of the current song in seconds
     pub elapsed: usize,
 }
 
@@ -45,24 +51,28 @@ pub enum Repeat {
 }
 
 pub struct MpdConnection {
-    connection: TcpStream,
+    reader: BufReader<ReadHalf<TcpStream>>,
+    writer: BufWriter<WriteHalf<TcpStream>>,
 }
 
 impl MpdConnection {
-    pub fn request_data(&mut self, request: &str) -> Result<String> {
+    pub async fn request_data(&mut self, request: &str) -> Result<String> {
         let mut data = String::new();
         loop {
             let mut buf = [0; SIZE_LIMIT];
 
-            self.connection.write(format!("{request}\n").as_bytes())?;
+            self.writer
+                .write_all(format!("{request}\n").as_bytes())
+                .await?;
+            self.writer.flush().await?; // wait until the request is definitely sent to mpd
 
-            self.connection.read(&mut buf)?;
+            self.reader.read(&mut buf).await?;
             let s = std::str::from_utf8(&buf)?;
 
             data.push_str(s.trim_matches(|c| c == '\0').trim());
 
             if data.len() > MAX_DATA_SIZE {
-                self.empty_connection();
+                self.empty_connection().await;
 
                 return Err(Error::new(
                     ErrorKind::DataLimitExceeded,
@@ -88,64 +98,72 @@ impl MpdConnection {
     }
 
     /// Empty out all bytes remaining in the input of the connection
-    fn empty_connection(&mut self) {
+    async fn empty_connection(&mut self) {
         let mut buf = [0; SIZE_LIMIT];
 
-        while let Ok(read_amount) = self.connection.read(&mut buf) {
+        while let Ok(read_amount) = self.reader.read(&mut buf).await {
             if read_amount == 0 {
                 break;
             }
         }
     }
 
-    pub fn play(&mut self) -> Result<()> {
-        let _ = self.request_data("pause 0")?;
+    /// Start playback from current song position
+    pub async fn play(&mut self) -> Result<()> {
+        let _ = self.request_data("pause 0").await?;
 
         Ok(())
     }
 
-    /// Seek to a position in the current song with offset in seconds
+    /// Seek to a position in the current song with offset in seconds.
     /// To seek relative to the current position use [Self::seek_relative]
-    pub fn seek(&mut self, offset: usize) -> Result<()> {
-        let _ = self.request_data(&format!("seekcur {offset}"))?;
+    pub async fn seek(&mut self, time: Duration) -> Result<()> {
+        let _ = self
+            .request_data(&format!(
+                "seekcur {}.{}",
+                time.as_secs(),
+                time.subsec_millis()
+            ))
+            .await?;
 
         Ok(())
     }
 
     /// Seek to a position in the current song relative to the current position with offset in
-    /// seconds
+    /// milliseconds.
     /// To seek from the songs begin (absolute) use [Self::seek]
-    pub fn seek_relative(&mut self, offset: isize) -> Result<()> {
-        let offset: String = if offset > 0 {
-            format!("+{offset}")
-        } else {
-            offset.to_string()
-        };
+    pub async fn seek_relative(&mut self, offset: i64) -> Result<()> {
+        let prefix = if offset > 0 { '+' } else { '-' };
+        let dur = Duration::from_micros(offset.unsigned_abs());
 
-        let _ = self.request_data(&format!("seekcur {offset}"))?;
+        let _ = self
+            .request_data(&format!(
+                "seekcur {}{}.{}",
+                prefix,
+                dur.as_secs(),
+                dur.subsec_millis()
+            ))
+            .await?;
 
         Ok(())
     }
 
     /// Pause playback
-    pub fn pause(&mut self) -> Result<()> {
-        let _ = self.request_data("pause 1")?;
+    pub async fn pause(&mut self) -> Result<()> {
+        let _ = self.request_data("pause 1").await?;
 
         Ok(())
     }
 
-    pub fn toggle_play(&mut self) -> Result<()> {
-        let is_playing = self.get_status()?.playing;
+    /// Toggle playback e.g. pause when playing and play when paused
+    pub async fn toggle_play(&mut self) -> Result<()> {
+        let _ = self.request_data("pause").await?;
 
-        if is_playing {
-            return self.pause();
-        } else {
-            return self.play();
-        }
+        Ok(())
     }
 
-    pub fn get_status(&mut self) -> Result<Status> {
-        let res = self.request_data("status")?;
+    pub async fn get_status(&mut self) -> Result<Status> {
+        let res = self.request_data("status").await?;
 
         let mut status = Status::new();
 
@@ -181,33 +199,20 @@ impl MpdConnection {
         Ok(status)
     }
 
-    pub fn init_connection(config: &Config) -> Result<Self> {
+    pub async fn init_connection(config: &Config) -> Result<Self> {
         println!(
             "Connecting to server on ip-address: {} using port: {}",
             config.addr, config.port
         );
 
-        let stream = {
+        let (r, w) = {
             let mut attempts = 0;
-            let timeout = if config.timeout > 0 {
-                Some(Duration::from_secs(config.timeout as u64))
-            } else {
-                None
-            };
             let addr = &SocketAddr::new(config.addr, config.port);
 
             loop {
-                let stream = if let Some(t) = timeout {
-                    TcpStream::connect_timeout(addr, t)
-                } else {
-                    TcpStream::connect(addr)
-                };
-
-                match stream {
+                match TcpStream::connect(addr).await {
                     Ok(stream) => {
-                        stream.set_read_timeout(timeout).unwrap(); // Cannot error out because Duration cannot be zero
-                        stream.set_write_timeout(timeout).unwrap();
-                        break stream;
+                        break stream.split();
                     }
                     Err(err) => {
                         if config.retries > 0 {
@@ -223,18 +228,24 @@ impl MpdConnection {
                         } else {
                             eprintln!("Could not connect: {err}");
                         }
+
+                        eprintln!("Retrying in 3 seconds");
+                        sleep(Duration::from_secs(3)).await;
                     }
                 }
             }
         };
 
-        let mut conn = Self { connection: stream };
+        let mut conn = Self {
+            reader: BufReader::new(r),
+            writer: BufWriter::new(w),
+        };
 
         {
             println!("Validating connection");
             let mut buf = [0; 1024];
 
-            conn.connection.read(&mut buf)?;
+            conn.reader.read(&mut buf).await?;
             let res = std::str::from_utf8(&buf)?;
 
             if !res.starts_with("OK MPD") {
@@ -245,7 +256,9 @@ impl MpdConnection {
         }
         {
             println!("Setting binary output limit to {SIZE_LIMIT} bytes");
-            let res = conn.request_data(concatcp!("binarylimit ", SIZE_LIMIT))?;
+            let res = conn
+                .request_data(concatcp!("binarylimit ", SIZE_LIMIT))
+                .await?;
 
             if res != "OK" {
                 return Err(Error::new_string(

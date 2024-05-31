@@ -2,7 +2,9 @@ mod config;
 mod connection;
 
 use clap::{arg, value_parser, Command};
-use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
+use libc::{
+    EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
+};
 use std::cmp::Ordering;
 use std::env;
 use std::ffi::CString;
@@ -24,8 +26,8 @@ use crate::connection::MpdConnection;
 const VERSION_STR: &str = concat!("v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
 
 #[cfg(target_os = "linux")]
-fn main() {
-fn main() -> io::Result<()> {
+#[async_std::main]
+async fn main() -> io::Result<()> {
     #[cfg(not(debug_assertions))]
     let config_path: PathBuf = {
         let mut path: PathBuf = match env::var("XDG_CONFIG_HOME") {
@@ -52,7 +54,6 @@ fn main() -> io::Result<()> {
         .arg(arg!(-p --port <PORT> "The port over which to connect to mpd").value_parser(value_parser!(u16)))
         .arg(arg!(-a --addr <ADDRESS> "the ip address over which to connect to mpd"))
         .arg(arg!(--retries <AMOUNT> "Amount of times mpDris retries to connect to mpd before exiting. Set to -1 to retry infinite times").value_parser(value_parser!(isize)))
-        .arg(arg!(--timeout <SECONDS> "Amount of seconds mpDris waits for MPD to respond. Set to -1 to wait indefinetly").value_parser(value_parser!(isize)))
         .arg(arg!(--"no-spawn-daemon" "When set does not try to fork into a daemon"))
         .arg(arg!(--systemd "When set acts as a daemon without forking the process"))
         .get_matches();
@@ -86,7 +87,7 @@ fn main() -> io::Result<()> {
         Signals::new(sigs)?
     };
 
-    let mut config = match Config::load_config(config_path.as_path()) {
+    let mut config = match Config::load_config(config_path.as_path()).await {
         Ok(c) => c,
         Err(err) => {
             panic!("Error occurred while trying to read config file! {err}");
@@ -94,7 +95,7 @@ fn main() -> io::Result<()> {
     };
 
     if !config_path.is_file() {
-        match config.write(&config_path) {
+        match config.write(&config_path).await {
             Ok(_) => {}
             Err(err) => eprintln!("Could not write config file: {err}"),
         }
@@ -109,20 +110,18 @@ fn main() -> io::Result<()> {
     if let Some(retries) = matches.get_one::<isize>("retries") {
         config.retries = *retries;
     }
-    if let Some(timeout) = matches.get_one::<isize>("timeout") {
-        config.timeout = *timeout;
-    }
 
     // Main app here
 
     let mut conn = MpdConnection::init_connection(&config)
+        .await
         .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}"));
 
     let handle = signals.handle();
     for signal in &mut signals {
         match signal {
             SIGHUP => {
-                println!("SIGHUP SIGHUP SIGHUP");
+                todo!("Implement config reloading");
             }
             SIGQUIT => {
                 eprintln!("Received SIGQUIT, dumping core...");
@@ -135,7 +134,6 @@ fn main() -> io::Result<()> {
             }
         }
     }
-
 
     Ok(())
 }
