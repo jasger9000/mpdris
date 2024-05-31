@@ -14,7 +14,7 @@ fn test_valid_mpd_error() {
         }
         .into(),
     });
-    
+
     let result = Error::try_from_mpd(output);
     assert_eq!(format!("{result:?}"), format!("{expected:?}"));
 }
@@ -33,7 +33,7 @@ fn test_invalid_format_no_brackets() {
     let output = String::from("ACK 5@0 play No such song");
     let result = Error::try_from_mpd(output);
     let expected: ParseResult = Err(ParseMPDError::expected('[', 4));
-    
+
     assert_eq!(format!("{result:?}"), format!("{expected:?}"));
 }
 

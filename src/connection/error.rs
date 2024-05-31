@@ -8,6 +8,12 @@ use std::{io, usize};
 
 pub type MPDResult<T> = Result<T, Error>;
 
+/// Error representing an ACK response from MPD
+///
+/// You can use [Self::new] and [Self::new_string()] to get errors with custom messages or
+/// directly convert [I/O](io::Error) and [Utf8Error]s using the into() method to construct a new
+/// instance. You can also parse a string ACK error response into an Error using the 
+/// [Self::try_from_mpd()] method.
 #[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
@@ -18,89 +24,69 @@ pub struct Error {
 pub enum ErrorKind {
     /// Seems to be unused as of now, likely if operation on something that has to be a list was
     /// not performed on list
-    /// In MPD: ACK_ERROR_NOT_LIST
+    ///
+    /// In MPD: [ACK_ERROR_NOT_LIST](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L11)
     NotAList,
     /// Another argument type or argument number was expected
-    /// In MPD: ACK_ERROR_ARG
+    ///
+    /// In MPD: [ACK_ERROR_ARG](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L12)
     WrongArgument,
-    /// Incorrect password provided. Also occures if no password is set
-    /// In MPD: ACK_ERROR_PASSWORD
+    /// Incorrect password provided. Also, occurs if no password is set
+    ///
+    /// In MPD: [ACK_ERROR_PASSWORD](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L13)
     IncorrectPassword,
     /// No permission to execute that command
-    /// In MPD: ACK_ERROR_PERMISSION
+    ///
+    /// In MPD: [ACK_ERROR_PERMISSION](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L14)
     PermissionDenied,
     /// An unknown command got executed
-    /// In MPD: ACK_ERROR_UNKNOWN
+    ///
+    /// In MPD: [ACK_ERROR_UNKNOWN](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L15)
     UnknownCommand,
     /// Item does not exist for example trying to load a playlist that does not exist
-    /// When trying to play a songid out of the playlist length will return [Self::Argument]
-    /// In MPD: ACK_ERROR_NO_EXIST
+    /// When trying to play a song id out of the playlist length will return [WrongArgument](ErrorKind::WrongArgument)
+    ///
+    /// In MPD: [ACK_ERROR_NO_EXIST](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L17)
     DoesNotExist,
     /// Gets returned if a playlist is too large. Presumably when trying to add to a full playlist
-    /// In MPD: ACK_ERROR_PLAYLIST_MAX
+    ///
+    /// In MPD: [ACK_ERROR_PLAYLIST_MAX](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L18)
     PlaylistTooLarge,
     /// A system error like an io error or when no mixer available
-    /// In MPD: ACK_ERROR_SYSTEM
+    ///
+    /// In MPD: [ACK_ERROR_SYSTEM](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L19)
     System,
     /// Cannot load a playlist. Seemingly unused for now.
-    /// In MPD: ACK_ERROR_PLAYLIST_LOAD
+    ///
+    /// In MPD: [ACK_ERROR_PLAYLIST_LOAD](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L20)
     PlaylistLoad,
     /// Cannot update the database. Currently only when Update queue full
-    /// In MPD: ACK_ERROR_UPDATE_ALREADY
+    ///
+    /// In MPD: [ACK_ERROR_UPDATE_ALREADY](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L21)
     CannotUpdate,
     /// There's no current song
-    /// In MPD: ACK_ERROR_PLAYER_SYNC
+    ///
+    /// In MPD: [ACK_ERROR_PLAYER_SYNC](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L22)
     PlayerSync,
     /// The command cannot be executed because the result already exists for example creating a new
-    /// parition with a name that already exists or trying to subscribe to a channel that was
+    /// partition with a name that already exists or trying to subscribe to a channel that was
     /// already subscribed to
-    /// In MPD: ACK_ERROR_ALREADY_EXIST
+    ///
+    /// In MPD: [ACK_ERROR_ALREADY_EXIST](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L23)
     AlreadyExists,
 
-    /// An I/O Error [io::Error]
+    /// An [I/O Error](io::Error)
     IO,
-    /// A [UTF-8 Parsing error ]
+    /// A [UTF-8 Parsing error](Utf8Error)
     UTF8,
     /// Data buffer limit reading the response was exceeded
     DataLimitExceeded,
     /// Gets returned when MPD does not respond with OK MPD {{VERSION}} while initialising the
     /// connection
     InvalidConnection,
+    /// Some other custom error
     Other,
 }
-
-// impl Display for ErrorKind {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         f.write_str(self.as_str())
-//     }
-// }
-//
-// impl ErrorKind {
-//     pub fn as_str(&self) -> &'static str {
-//         use ErrorKind::*;
-//
-//         match *self {
-//             NotAList => "tried to execute list operation on non list item",
-//             WrongArgument => "wrong argument used",
-//             IncorrectPassword => "password incorrect",
-//             PermissionDenied => "permission not granted",
-//             UnknownCommand => "unknown command",
-//             DoesNotExist => "item does not exist",
-//             PlaylistTooLarge => "playlist is too large",
-//             System => "system error occured",
-//             PlaylistLoad => "could not load playlist",
-//             CannotUpdate => "could not update database",
-//             PlayerSync => "could not sync player",
-//             AlreadyExists => "The item already exists",
-//
-//             IO => "io error occured",
-//             UTF8 => "response included invalid UTF-8",
-//             DataLimitExceeded => "data limit exceeded",
-//             InvalidConnection => "Could not validate MPD connection"
-//             Other => ""
-//         }
-//     }
-// }
 
 impl ErrorKind {
     /// Tries to convert an error code returned from an MPD ACK response into its corresponding ErrorKind
@@ -191,11 +177,13 @@ impl Error {
         }
     }
 
+    /// Returns the kind of the error encountered
     pub fn kind(&self) -> ErrorKind {
         self.kind
     }
 
-    /// Tries to parse an MPD error output into an error
+    /// Tries to parse an MPD error output into an error.
+    /// Returns the parsed error or when it was unable to parse [ParseMPDError]
     pub fn try_from_mpd(output: String) -> Result<Self, ParseMPDError> {
         use ParseMPDErrorKind::*;
         use ParseState::*;
@@ -295,7 +283,11 @@ impl Error {
 
         temp = temp.trim().to_string();
 
-        if error_kind.is_none() || list_number.is_none() || failed_command.is_none() || temp.is_empty() {
+        if error_kind.is_none()
+            || list_number.is_none()
+            || failed_command.is_none()
+            || temp.is_empty()
+        {
             return Err(ParseMPDError::new(
                 UnexpectedSymbol,
                 output.chars().count() - 1,
@@ -316,7 +308,7 @@ impl Error {
 
 /// An error which can be returned when parsing a String into an [Error]
 ///
-/// This `struct` is created when using the [`Error::try_from_mpd`] method.
+/// This `struct` is created when using the [Error::try_from_mpd()] method.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseMPDError {
     pub kind: ParseMPDErrorKind,
@@ -326,6 +318,7 @@ pub struct ParseMPDError {
     pub expected_char: Option<char>,
 }
 
+/// Kinds of errors the parser can encounter when parsing. Used in [ParseMPDError]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ParseMPDErrorKind {
     EmptyString,
@@ -387,7 +380,7 @@ impl ParseMPDError {
     }
 }
 
-/// State of the MPD Error parser
+/// States of the MPD Error parser
 enum ParseState {
     FindACK,
     FindLeftBracket,
@@ -398,21 +391,28 @@ enum ParseState {
     GetErrorMessage,
 }
 
+/// Internal type for holding a custom message when a new [Error] is constructed using
+/// [Error::new()].
 #[derive(Debug)]
 struct StrMessageError {
     message: &'static str,
 }
 
+/// Internal type for holding a custom message when a new [Error] is constructed using
+/// [Error::new_string()].
 #[derive(Debug)]
 struct StringMessageError {
     message: String,
 }
 
+/// Internal type for holding a source Error when a new [Error] is constructed using
+/// [Error::source()]. Mostly used to wrap [I/O](io::Error) and [Utf8Error]s
 #[derive(Debug)]
 struct SourceError {
     source: Box<dyn stdError>,
 }
 
+/// Internal type for holding a successfully parsed result from [Error::try_from_mpd()]
 #[derive(Debug)]
 struct ParsedError {
     current_command: String,
