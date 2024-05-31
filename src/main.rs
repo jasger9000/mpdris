@@ -90,7 +90,7 @@ async fn main() -> io::Result<()> {
     let mut config = match Config::load_config(config_path.as_path()).await {
         Ok(c) => c,
         Err(err) => {
-            panic!("Error occurred while trying to read config file! {err}");
+            panic!("Error occurred while trying to read config file: {err}");
         }
     };
 

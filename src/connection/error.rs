@@ -12,11 +12,11 @@ pub type MPDResult<T> = Result<T, Error>;
 ///
 /// You can use [Self::new] and [Self::new_string()] to get errors with custom messages or
 /// directly convert [I/O](io::Error) and [Utf8Error]s using the into() method to construct a new
-/// instance. You can also parse a string ACK error response into an Error using the 
+/// instance. You can also parse a string ACK error response into an Error using the
 /// [Self::try_from_mpd()] method.
 #[derive(Debug)]
 pub struct Error {
-    kind: ErrorKind,
+    pub kind: ErrorKind,
     stored: Box<dyn stdError>,
 }
 
@@ -177,11 +177,6 @@ impl Error {
         }
     }
 
-    /// Returns the kind of the error encountered
-    pub fn kind(&self) -> ErrorKind {
-        self.kind
-    }
-
     /// Tries to parse an MPD error output into an error.
     /// Returns the parsed error or when it was unable to parse [ParseMPDError]
     pub fn try_from_mpd(output: String) -> Result<Self, ParseMPDError> {
@@ -237,7 +232,7 @@ impl Error {
 
                         temp.clear();
                         state = GetListNum;
-                    } else if chr < '0' || chr > '9' {
+                    } else if !chr.is_ascii_digit() {
                         return Err(ParseMPDError::number(i));
                     } else {
                         temp.push(chr);
@@ -253,7 +248,7 @@ impl Error {
                         };
                         temp.clear();
                         state = FindLeftBrace;
-                    } else if chr < '0' || chr > '9' {
+                    } else if !chr.is_ascii_digit() {
                         return Err(ParseMPDError::number(i));
                     } else {
                         temp.push(chr);
@@ -348,7 +343,7 @@ impl Display for ParseMPDError {
         if let Some(chr) = self.expected_char {
             write!(f, ", expected char '{chr}'")?;
         }
-        write!(f, " at position {}\n", self.pos)
+        write!(f, " at position {}", self.pos)
         //        f.write_str(&self.output)?;
         //        write!(f, "\n{}/\\", " ".repeat(self.pos))
     }

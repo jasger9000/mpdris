@@ -36,7 +36,7 @@ impl Status {
         Self {
             playing: false,
             volume: 100,
-            repeat: Repeat::OFF,
+            repeat: Repeat::Off,
             shuffle: false,
             elapsed: 0,
         }
@@ -45,9 +45,9 @@ impl Status {
 
 #[derive(PartialEq, Debug)]
 pub enum Repeat {
-    OFF = 0,
-    ON = 1,
-    SINGLE = 2,
+    Off = 0,
+    On = 1,
+    Single = 2,
 }
 
 pub struct MpdConnection {
@@ -66,7 +66,7 @@ impl MpdConnection {
                 .await?;
             self.writer.flush().await?; // wait until the request is definitely sent to mpd
 
-            self.reader.read(&mut buf).await?;
+            let _ = self.reader.read(&mut buf).await?; // non-full buffers are intended
             let s = std::str::from_utf8(&buf)?;
 
             data.push_str(s.trim_matches(|c| c == '\0').trim());
@@ -175,12 +175,12 @@ impl MpdConnection {
                     "state" => status.playing = v.contains("play"),
                     "single" => {
                         if v.parse().unwrap_or(0) > 0 {
-                            status.repeat = Repeat::SINGLE;
+                            status.repeat = Repeat::Single;
                         }
                     }
                     "repeat" => {
-                        if v.parse().unwrap_or(0) > 0 && status.repeat == Repeat::OFF {
-                            status.repeat = Repeat::ON;
+                        if v.parse().unwrap_or(0) > 0 && status.repeat == Repeat::Off {
+                            status.repeat = Repeat::On;
                         }
                     }
                     "volume" => status.volume = v.parse().unwrap_or(0),
@@ -245,7 +245,7 @@ impl MpdConnection {
             println!("Validating connection");
             let mut buf = [0; 1024];
 
-            conn.reader.read(&mut buf).await?;
+            let _ = conn.reader.read(&mut buf).await?; // non-full buffers are intended
             let res = std::str::from_utf8(&buf)?;
 
             if !res.starts_with("OK MPD") {
