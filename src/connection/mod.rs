@@ -207,23 +207,36 @@ impl MpdConnection {
             config,
         };
 
-        {
-            println!("Validating connection");
-            let mut buf = [0; 1024];
-
-            let _ = conn.reader.read(&mut buf).await?; // non-full buffers are intended
-            let res = std::str::from_utf8(&buf)?;
-
-            if !res.starts_with("OK MPD") {
-                return Err(Error::new_string(ErrorKind::InvalidConnection, format!("Could not validate connection. Excepted `OK MPD {{VERSION}}` from server but got `{res}`")));
-            }
-        }
+        println!("Validating connection");
+        conn.read_data().await?;
         println!("Setting binary output limit to {SIZE_LIMIT} bytes");
         conn.request_data(concatcp!("binarylimit ", SIZE_LIMIT))
             .await?;
 
         Ok(conn)
     }
+
+    pub async fn reconnect(&mut self) -> Result<()> {
+        {
+            let config = self.config.lock().await;
+
+            println!(
+                "Reconnecting to server on ip-address: {} using port: {}",
+                config.addr, config.port
+            );
+            let (r, w) = connect(config.addr, config.port, config.retries).await?;
+            self.reader = r;
+            self.writer = w;
+        }
+        self.read_data().await?;
+        println!("Setting binary output limit to {SIZE_LIMIT} bytes");
+        self.request_data(concatcp!("binarylimit ", SIZE_LIMIT))
+            .await?;
+
+        Ok(())
+    }
+}
+
 async fn connect(
     addr: IpAddr,
     port: u16,

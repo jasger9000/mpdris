@@ -85,7 +85,23 @@ async fn main() {
     for signal in &mut signals {
         match signal {
             SIGHUP => {
-                todo!("Implement config reloading");
+                println!("Received SIGHUP, reloading config");
+                match Config::load_config(&config_path, &matches).await {
+                    Ok(c) => {
+                        *config.lock().await = c;
+
+                        conn.lock().await.reconnect().await.unwrap_or_else(|err| {
+                            eprintln!("Could not reconnect to mpd: {err}");
+                            eprintln!("Exiting...");
+                            exit(EXIT_FAILURE);
+                        });
+
+                        println!("Reload complete!");
+                    }
+                    Err(err) => {
+                        eprintln!("Could not load config file, continuing with old one: {err}");
+                    }
+                }
             }
             SIGQUIT => {
                 eprintln!("Received SIGQUIT, dumping core...");
