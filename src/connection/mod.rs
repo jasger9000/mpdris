@@ -2,15 +2,18 @@ mod error;
 
 use async_std::io::{BufReader, BufWriter};
 use async_std::net::TcpStream;
+use async_std::sync::Mutex;
 use async_std::task::sleep;
-use std::net::SocketAddr;
+use std::io;
+use std::net::{IpAddr, SocketAddr};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::config::Config;
 use const_format::concatcp;
 use futures_util::{
     io::{ReadHalf, WriteHalf},
-    AsyncReadExt, AsyncWriteExt,
+    AsyncBufReadExt, AsyncReadExt, AsyncWriteExt,
 };
 
 pub use self::error::MPDResult as Result;
@@ -18,8 +21,6 @@ pub use self::error::*;
 
 /// How many bytes MPD sends at once
 const SIZE_LIMIT: usize = 1024;
-/// Maximum accepted data from one request_data() call
-const MAX_DATA_SIZE: usize = 16_384;
 
 #[derive(Debug)]
 pub struct Status {
@@ -53,59 +54,53 @@ pub enum Repeat {
 pub struct MpdConnection {
     reader: BufReader<ReadHalf<TcpStream>>,
     writer: BufWriter<WriteHalf<TcpStream>>,
+    config: Arc<Mutex<Config>>,
 }
 
 impl MpdConnection {
-    pub async fn request_data(&mut self, request: &str) -> Result<String> {
-        let mut data = String::new();
-        loop {
-            let mut buf = [0; SIZE_LIMIT];
+    pub async fn request_data(&mut self, request: &str) -> Result<Vec<(String, String)>> {
+        self.writer
+            .write_all(format!("{request}\n").as_bytes())
+            .await?;
+        self.writer.flush().await?; // wait until the request is definitely sent to mpd
 
-            self.writer
-                .write_all(format!("{request}\n").as_bytes())
-                .await?;
-            self.writer.flush().await?; // wait until the request is definitely sent to mpd
-
-            let _ = self.reader.read(&mut buf).await?; // non-full buffers are intended
-            let s = std::str::from_utf8(&buf)?;
-
-            data.push_str(s.trim_matches(|c| c == '\0').trim());
-
-            if data.len() > MAX_DATA_SIZE {
-                self.empty_connection().await;
-
-                return Err(Error::new(
-                    ErrorKind::DataLimitExceeded,
-                    concatcp!(
-                        "Data buffer has overflown (Max size ",
-                        MAX_DATA_SIZE,
-                        " bytes)"
-                    ),
-                ));
-            }
-
-            if buf[SIZE_LIMIT - 1] == 0 {
-                // buffer not filled e.g. everything is read
-                break;
-            }
-        }
-
-        if data.ends_with("OK") {
-            return Ok(data);
-        }
-
-        Err(Error::try_from_mpd(data)?)
+        self.read_data().await
     }
 
-    /// Empty out all bytes remaining in the input of the connection
-    async fn empty_connection(&mut self) {
-        let mut buf = [0; SIZE_LIMIT];
+    async fn read_data(&mut self) -> Result<Vec<(String, String)>> {
+        let mut data: Vec<(String, String)> = Vec::new();
+        let mut buf = String::new();
+        let mut failed_parses: u8 = 0;
 
-        while let Ok(read_amount) = self.reader.read(&mut buf).await {
-            if read_amount == 0 {
+        loop {
+            self.reader.read_line(&mut buf).await?;
+
+            if buf.starts_with("OK") {
+                // lines starting with OK indicate the end of response
                 break;
+            } else if buf.starts_with("ACK") {
+                return Err(Error::try_from_mpd(buf)?);
             }
+
+            let mut parts = buf.split(": ");
+
+            if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
+                data.push((k.to_string(), v.to_string()));
+            } else {
+                failed_parses += 1;
+                eprintln!("Could not split response line into key-value pair (failed parses {failed_parses})");
+                if failed_parses >= 3 {
+                    return Err(Error::new_string(
+                        ErrorKind::KeyValueError,
+                        format!("Failed to parse {failed_parses} lines into key-value pairs"),
+                    ));
+                }
+            }
+
+            buf.clear();
         }
+
+        Ok(data)
     }
 
     /// Start playback from current song position
@@ -155,7 +150,7 @@ impl MpdConnection {
         Ok(())
     }
 
-    /// Toggle playback e.g. pause when playing and play when paused
+    /// Toggle playback, e.g. pauses when playing and play when paused
     pub async fn toggle_play(&mut self) -> Result<()> {
         let _ = self.request_data("pause").await?;
 
@@ -166,79 +161,50 @@ impl MpdConnection {
         let res = self.request_data("status").await?;
 
         let mut status = Status::new();
+        let mut is_single = false;
 
-        for line in res.lines() {
-            let mut parts = line.split(": ");
-
-            if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
-                match k {
-                    "state" => status.playing = v.contains("play"),
-                    "single" => {
-                        if v.parse().unwrap_or(0) > 0 {
-                            status.repeat = Repeat::Single;
-                        }
+        for (k, v) in res {
+            match k.as_str() {
+                "state" => status.playing = v.contains("play"),
+                "single" => {
+                    if v.parse().unwrap_or(0) > 0 {
+                        is_single = true;
                     }
-                    "repeat" => {
-                        if v.parse().unwrap_or(0) > 0 && status.repeat == Repeat::Off {
-                            status.repeat = Repeat::On;
-                        }
-                    }
-                    "volume" => status.volume = v.parse().unwrap_or(0),
-                    "random" => status.shuffle = v.parse().unwrap_or(0) > 0,
-                    "elapsed" => status.elapsed = v.parse().unwrap_or(0),
-                    &_ => {}
                 }
-            } else if line == "OK" {
-                break;
-            } else {
-                eprintln!("Expected {{k}}: {{v}} but got `{line}`.");
-                eprintln!("Could not split line into key-value pair");
+                "repeat" => {
+                    if v.parse().unwrap_or(0) > 0 {
+                        status.repeat = Repeat::On;
+                    }
+                }
+                "volume" => status.volume = v.parse().unwrap_or(0),
+                "random" => status.shuffle = v.parse().unwrap_or(0) > 0,
+                "elapsed" => status.elapsed = v.parse().unwrap_or(0),
+                &_ => {}
             }
+        }
+
+        if is_single {
+            status.repeat = Repeat::Single;
         }
 
         Ok(status)
     }
 
-    pub async fn init_connection(config: &Config) -> Result<Self> {
+    pub async fn new(config: Arc<Mutex<Config>>) -> Result<Self> {
+        let c = config.lock().await;
+
         println!(
             "Connecting to server on ip-address: {} using port: {}",
-            config.addr, config.port
+            c.addr, c.port
         );
 
-        let (r, w) = {
-            let mut attempts = 0;
-            let addr = &SocketAddr::new(config.addr, config.port);
-
-            loop {
-                match TcpStream::connect(addr).await {
-                    Ok(stream) => {
-                        break stream.split();
-                    }
-                    Err(err) => {
-                        if config.retries > 0 {
-                            eprintln!(
-                                "Could not connect (tries left {}): {err}",
-                                config.retries - attempts
-                            );
-
-                            attempts += 1;
-                            if attempts > config.retries {
-                                return Err(err.into());
-                            }
-                        } else {
-                            eprintln!("Could not connect: {err}");
-                        }
-
-                        eprintln!("Retrying in 3 seconds");
-                        sleep(Duration::from_secs(3)).await;
-                    }
-                }
-            }
-        };
+        let (r, w) = connect(c.addr, c.port, c.retries).await?;
+        drop(c);
 
         let mut conn = Self {
-            reader: BufReader::new(r),
-            writer: BufWriter::new(w),
+            reader: r,
+            writer: w,
+            config,
         };
 
         {
@@ -249,27 +215,51 @@ impl MpdConnection {
             let res = std::str::from_utf8(&buf)?;
 
             if !res.starts_with("OK MPD") {
-                return Err(Error::new_string(ErrorKind::InvalidConnection,
-                    format!("Could not validate connection. Excepted `OK MPD {{VERSION}}` from server but got `{res}`"),
-                ));
+                return Err(Error::new_string(ErrorKind::InvalidConnection, format!("Could not validate connection. Excepted `OK MPD {{VERSION}}` from server but got `{res}`")));
             }
         }
-        {
-            println!("Setting binary output limit to {SIZE_LIMIT} bytes");
-            let res = conn
-                .request_data(concatcp!("binarylimit ", SIZE_LIMIT))
-                .await?;
-
-            if res != "OK" {
-                return Err(Error::new_string(
-                    ErrorKind::InvalidConnection,
-                    format!(
-                        "Could not validate connection. Excepted `OK` from server but got `{res}`"
-                    ),
-                ));
-            }
-        }
+        println!("Setting binary output limit to {SIZE_LIMIT} bytes");
+        conn.request_data(concatcp!("binarylimit ", SIZE_LIMIT))
+            .await?;
 
         Ok(conn)
     }
+async fn connect(
+    addr: IpAddr,
+    port: u16,
+    retries: isize,
+) -> io::Result<(
+    BufReader<ReadHalf<TcpStream>>,
+    BufWriter<WriteHalf<TcpStream>>,
+)> {
+    let mut attempts = 0;
+    let addr = &SocketAddr::new(addr, port);
+
+    let (r, w) = loop {
+        match TcpStream::connect(addr).await {
+            Ok(stream) => {
+                break stream.split();
+            }
+            Err(err) => {
+                if retries > 0 {
+                    eprintln!(
+                        "Could not connect (tries left {}): {err}",
+                        retries - attempts
+                    );
+
+                    attempts += 1;
+                    if attempts > retries {
+                        return Err(err.into());
+                    }
+                } else {
+                    eprintln!("Could not connect: {err}");
+                }
+
+                eprintln!("Retrying in 3 seconds");
+                sleep(Duration::from_secs(3)).await;
+            }
+        }
+    };
+
+    Ok((BufReader::new(r), BufWriter::new(w)))
 }

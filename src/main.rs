@@ -1,6 +1,7 @@
 mod config;
 mod connection;
 
+use async_std::sync::Mutex;
 use clap::{arg, value_parser, Command};
 use libc::{
     EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
@@ -56,24 +57,29 @@ async fn main() {
         })
     };
 
-    let mut config = Config::load_config(config_path.as_path(), &matches)
-        .await
-        .unwrap_or_else(|err| {
-            eprintln!("Error occurred while trying to load the config: {err}");
-            exit(EXIT_FAILURE);
-        });
+    let config = {
+        let config = Config::load_config(config_path.as_path(), &matches)
+            .await
+            .unwrap_or_else(|err| {
+                eprintln!("Error occurred while trying to load the config: {err}");
+                exit(EXIT_FAILURE);
+            });
 
-    if !config_path.is_file() {
-        config.write(&config_path).await.unwrap_or_else(|err| {
-            eprintln!("Could not write config file: {err}");
-        });
-    }
+        if !config_path.is_file() {
+            config.write(&config_path).await.unwrap_or_else(|err| {
+                eprintln!("Could not write config file: {err}");
+            });
+        }
+        Arc::new(Mutex::new(config))
+    };
 
     // Main app here
 
-    let mut conn = MpdConnection::init_connection(&config)
-        .await
-        .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}"));
+    let conn = Arc::new(Mutex::new(
+        MpdConnection::new(config.clone())
+            .await
+            .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}")),
+    ));
 
     let handle = signals.handle();
     for signal in &mut signals {
@@ -151,7 +157,7 @@ fn get_signals(is_daemon: bool) -> io::Result<Signals> {
 }
 
 #[cfg(not(debug_assertions))]
-fn get_config_pathe() -> PathBuf {
+fn get_config_path() -> PathBuf {
     let path: PathBuf = match env::var("XDG_CONFIG_HOME") {
         Ok(p) => p,
         Err(_) => env::var("HOME").expect("$HOME must always be set"),

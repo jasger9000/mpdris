@@ -79,11 +79,11 @@ pub enum ErrorKind {
     IO,
     /// A [UTF-8 Parsing error](Utf8Error)
     UTF8,
-    /// Data buffer limit reading the response was exceeded
-    DataLimitExceeded,
     /// Gets returned when MPD does not respond with OK MPD {{VERSION}} while initialising the
     /// connection
     InvalidConnection,
+    /// Error that occurs when a line from MPD cannot be split into key value pairs
+    KeyValueError,
     /// Some other custom error
     Other,
 }
