@@ -74,7 +74,7 @@ impl Config {
     ///
     /// ## Behaviour
     /// - If the file does not exist, it will use the standard config instead.
-    /// - If a value is missing from the config it will warn the user and use the default value.
+    /// - If a value is missing from the config, it will warn the user and use the default value.
     /// - If the `$MPD_HOST` or `$MPD_PORT` environment variable is defined,
     /// it will take its values instead of the ones specified in the config as per
     /// the [MPD client specifications](https://mpd.readthedocs.io/en/stable/client.html#connecting-to-mpd)
@@ -158,10 +158,10 @@ fn default_addr() -> IpAddr {
     DEFAULT_ADDR
 }
 fn default_port() -> u16 {
-    eprintln!("Missing value `port` in config, using default: {DEFAULT_ADDR}");
+    eprintln!("Missing value `port` in config, using default: {DEFAULT_PORT}");
     DEFAULT_PORT
 }
 fn default_retries() -> isize {
-    eprintln!("Missing value `retries` in config, using default: {DEFAULT_ADDR}");
+    eprintln!("Missing value `retries` in config, using default: {DEFAULT_RETRIES}");
     DEFAULT_RETRIES
 }

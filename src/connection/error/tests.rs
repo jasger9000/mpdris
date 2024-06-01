@@ -1,6 +1,6 @@
 use super::*;
 
-type ParseResult = std::result::Result<Error, ParseMPDError>;
+type ParseResult = Result<Error, ParseMPDError>;
 
 #[test]
 fn test_valid_mpd_error() {

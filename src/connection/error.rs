@@ -22,8 +22,8 @@ pub struct Error {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorKind {
-    /// Seems to be unused as of now, likely if operation on something that has to be a list was
-    /// not performed on list
+    /// It seems unused as of now, likely if operation on something that has to be a list was
+    /// not performed on a list
     ///
     /// In MPD: [ACK_ERROR_NOT_LIST](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L11)
     NotAList,
@@ -31,9 +31,11 @@ pub enum ErrorKind {
     ///
     /// In MPD: [ACK_ERROR_ARG](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L12)
     WrongArgument,
-    /// Incorrect password provided. Also, occurs if no password is set
+    /// Incorrect password provided.
+    /// Also, it occurs if no password is set
     ///
-    /// In MPD: [ACK_ERROR_PASSWORD](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L13)
+    /// In MPD:
+    /// [ACK_ERROR_PASSWORD](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L13)
     IncorrectPassword,
     /// No permission to execute that command
     ///
@@ -43,7 +45,7 @@ pub enum ErrorKind {
     ///
     /// In MPD: [ACK_ERROR_UNKNOWN](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L15)
     UnknownCommand,
-    /// Item does not exist for example trying to load a playlist that does not exist
+    /// Item does not exist, for example, trying to load a playlist that does not exist
     /// When trying to play a song id out of the playlist length will return [WrongArgument](ErrorKind::WrongArgument)
     ///
     /// In MPD: [ACK_ERROR_NO_EXIST](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L17)
@@ -60,15 +62,17 @@ pub enum ErrorKind {
     ///
     /// In MPD: [ACK_ERROR_PLAYLIST_LOAD](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L20)
     PlaylistLoad,
-    /// Cannot update the database. Currently only when Update queue full
+    /// Cannot update the database.
+    /// Currently only when Update queue is full
     ///
-    /// In MPD: [ACK_ERROR_UPDATE_ALREADY](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L21)
+    /// In MPD:
+    /// [ACK_ERROR_UPDATE_ALREADY](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L21)
     CannotUpdate,
     /// There's no current song
     ///
     /// In MPD: [ACK_ERROR_PLAYER_SYNC](https://github.com/MusicPlayerDaemon/MPD/blob/master/src/protocol/Ack.hxx#L22)
     PlayerSync,
-    /// The command cannot be executed because the result already exists for example creating a new
+    /// The command cannot be executed because the result already exists, for example, creating a new
     /// partition with a name that already exists or trying to subscribe to a channel that was
     /// already subscribed to
     ///
@@ -79,7 +83,7 @@ pub enum ErrorKind {
     IO,
     /// A [UTF-8 Parsing error](Utf8Error)
     UTF8,
-    /// Gets returned when MPD does not respond with OK MPD {{VERSION}} while initialising the
+    /// Gets returned when MPD does not respond with OK MPD {{VERSION}} while initializing the
     /// connection
     InvalidConnection,
     /// Error that occurs when a line from MPD cannot be split into key value pairs
@@ -158,7 +162,7 @@ impl From<ParseMPDError> for Error {
 
 impl Error {
     /// Creates a new error with a static error string
-    /// If you want to create a IO or UTF-8 error type, please use the into() method
+    /// If you want to create an I/O or UTF-8 error type, please use the into() method
     /// See also [Self::new_string] to create a new Self with a heap allocated String
     pub fn new(kind: ErrorKind, message: &'static str) -> Self {
         Self {
@@ -168,7 +172,7 @@ impl Error {
     }
 
     /// Creates a new error with a heap allocated error string
-    /// If you want to create a IO or UTF-8 error type, please use the into() method
+    /// If you want to create an IO or UTF-8 error type, please use the into() method
     /// See also [Self::new] to create a new Self with a static error string
     pub fn new_string(kind: ErrorKind, message: String) -> Self {
         Self {
@@ -307,7 +311,7 @@ impl Error {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseMPDError {
     pub kind: ParseMPDErrorKind,
-    /// The character position (0 indexed) at which the parsing failed
+    /// The character position (zero indexed) at which the parsing failed
     pub pos: usize,
     /// The character the parser expected to find
     pub expected_char: Option<char>,

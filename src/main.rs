@@ -43,7 +43,7 @@ async fn main() {
 
     // subscribe to signals
     let mut signals = {
-        // decide wether or not we should fork
+        // decide whether, we should fork
         let is_daemon = !matches.get_flag("no-spawn-daemon") || matches.get_flag("systemd");
         let should_fork = !matches.get_flag("no-spawn-daemon") && !matches.get_flag("systemd");
 
@@ -103,7 +103,8 @@ async fn main() {
     }
 }
 
-/// Forks the currently running process, kills the parent, closes all filedescriptors and sets the working directory to /
+/// Forks the currently running process, kills the parent,
+/// closes all file descriptors and sets the working directory to /
 fn daemonize() {
     let pid = unsafe { libc::fork() };
     match pid.cmp(&0) {
@@ -129,7 +130,7 @@ fn daemonize() {
             || libc::close(STDOUT_FILENO) < 0
             || libc::close(STDERR_FILENO) < 0
         {
-            panic!("Could not filedescriptors stdin, stdout, stderr");
+            panic!("Could not file descriptors stdin, stdout, stderr");
         }
     }
 }
@@ -140,9 +141,10 @@ fn get_signals(is_daemon: bool) -> io::Result<Signals> {
     let kill_now = Arc::new(AtomicBool::new(false));
 
     for sig in TERM_SIGNALS {
-        // kill application when flag is set & signal is received
+        // kill application when a flag is set & signal is received
         flag::register_conditional_shutdown(*sig, EXIT_FAILURE, Arc::clone(&kill_now))?;
-        // Sets signal after it is already handled by line above -> will instantly kill when singal is received twice
+        // Set signal after it is already handled by the line above -> will instantly kill
+        // when signal is received twice
         flag::register(*sig, Arc::clone(&kill_now))?;
     }
 
