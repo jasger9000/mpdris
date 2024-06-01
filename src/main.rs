@@ -9,7 +9,6 @@ use std::cmp::Ordering;
 use std::env;
 use std::ffi::CString;
 use std::io;
-use std::net::IpAddr;
 use std::path::PathBuf;
 use std::process::exit;
 use std::sync::{atomic::AtomicBool, Arc};
@@ -27,25 +26,8 @@ const VERSION_STR: &str = concat!("v", env!("CARGO_PKG_VERSION"), " (", env!("GI
 
 #[cfg(target_os = "linux")]
 #[async_std::main]
-async fn main() -> io::Result<()> {
-    #[cfg(not(debug_assertions))]
-    let config_path: PathBuf = {
-        let mut path: PathBuf = match env::var("XDG_CONFIG_HOME") {
-            Ok(c) => c,
-            Err(_) => env::var("HOME").expect("$HOME must always be set"),
-        }
-        .parse()
-        .expect("Could not parse path to config directory");
-
-        path.join(["mpd", "mpDris.conf"].iter().collect::<PathBuf>())
-    };
-    #[cfg(debug_assertions)]
-    let config_path: PathBuf = [
-        env::var("PWD").expect("$PWD must always be set").as_str(),
-        "mpDris.conf",
-    ]
-    .iter()
-    .collect();
+async fn main() {
+    let config_path = get_config_path();
 
     #[rustfmt::skip] // this gets really messy when formatted as multiline
     let matches = Command::new(env!("CARGO_BIN_NAME"))
@@ -68,47 +50,23 @@ async fn main() -> io::Result<()> {
             daemonize();
         }
 
-        let kill_now = Arc::new(AtomicBool::new(false));
-
-        for sig in TERM_SIGNALS {
-            // kill application when flag is set & signal is received
-            flag::register_conditional_shutdown(*sig, EXIT_FAILURE, Arc::clone(&kill_now))?;
-            // Sets signal after it is already handled by line above -> will instantly kill when singal is received twice
-            flag::register(*sig, Arc::clone(&kill_now))?;
-        }
-
-        let mut sigs: Vec<_> = TERM_SIGNALS.iter().collect();
-
-        // subscribe to extra signals
-        if is_daemon {
-            sigs.push(&SIGHUP);
-        }
-
-        Signals::new(sigs)?
+        get_signals(is_daemon).unwrap_or_else(|err| {
+            eprintln!("Could not subscribe to signals: {err}");
+            exit(EXIT_FAILURE);
+        })
     };
 
-    let mut config = match Config::load_config(config_path.as_path()).await {
-        Ok(c) => c,
-        Err(err) => {
-            panic!("Error occurred while trying to read config file: {err}");
-        }
-    };
+    let mut config = Config::load_config(config_path.as_path(), &matches)
+        .await
+        .unwrap_or_else(|err| {
+            eprintln!("Error occurred while trying to load the config: {err}");
+            exit(EXIT_FAILURE);
+        });
 
     if !config_path.is_file() {
-        match config.write(&config_path).await {
-            Ok(_) => {}
-            Err(err) => eprintln!("Could not write config file: {err}"),
-        }
-    }
-
-    if let Some(port) = matches.get_one::<u16>("port") {
-        config.port = *port;
-    }
-    if let Some(addr) = matches.get_one::<IpAddr>("addr") {
-        config.addr = *addr;
-    }
-    if let Some(retries) = matches.get_one::<isize>("retries") {
-        config.retries = *retries;
+        config.write(&config_path).await.unwrap_or_else(|err| {
+            eprintln!("Could not write config file: {err}");
+        });
     }
 
     // Main app here
@@ -126,7 +84,10 @@ async fn main() -> io::Result<()> {
             SIGQUIT => {
                 eprintln!("Received SIGQUIT, dumping core...");
                 handle.close();
-                emulate_default_handler(SIGQUIT)?;
+                emulate_default_handler(SIGQUIT).unwrap_or_else(|err| {
+                    eprintln!("Failed to dump core: {err}");
+                    exit(EXIT_FAILURE);
+                });
             }
             _ => {
                 eprintln!("Received signal, quitting...");
@@ -134,8 +95,6 @@ async fn main() -> io::Result<()> {
             }
         }
     }
-
-    Ok(())
 }
 
 /// Forks the currently running process, kills the parent, closes all filedescriptors and sets the working directory to /
@@ -167,4 +126,47 @@ fn daemonize() {
             panic!("Could not filedescriptors stdin, stdout, stderr");
         }
     }
+}
+
+/// Subscribes to exit signals
+/// If is_daemon is true will add SIGHUP signal to returned Signals
+fn get_signals(is_daemon: bool) -> io::Result<Signals> {
+    let kill_now = Arc::new(AtomicBool::new(false));
+
+    for sig in TERM_SIGNALS {
+        // kill application when flag is set & signal is received
+        flag::register_conditional_shutdown(*sig, EXIT_FAILURE, Arc::clone(&kill_now))?;
+        // Sets signal after it is already handled by line above -> will instantly kill when singal is received twice
+        flag::register(*sig, Arc::clone(&kill_now))?;
+    }
+
+    let mut sigs: Vec<_> = TERM_SIGNALS.iter().collect();
+
+    // subscribe to extra signals
+    if is_daemon {
+        sigs.push(&SIGHUP);
+    }
+
+    Ok(Signals::new(sigs)?)
+}
+
+#[cfg(not(debug_assertions))]
+fn get_config_pathe() -> PathBuf {
+    let path: PathBuf = match env::var("XDG_CONFIG_HOME") {
+        Ok(p) => p,
+        Err(_) => env::var("HOME").expect("$HOME must always be set"),
+    }
+    .parse()
+    .expect("Could not parse path to config directory");
+
+    path.join(["mpd", "mpDris.conf"].iter().collect::<PathBuf>())
+}
+#[cfg(debug_assertions)]
+fn get_config_path() -> PathBuf {
+    [
+        env::var("PWD").expect("$PWD must always be set").as_str(),
+        "mpDris.conf",
+    ]
+    .iter()
+    .collect()
 }

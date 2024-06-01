@@ -1,4 +1,5 @@
 use async_std::{fs, io};
+use clap::ArgMatches;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::net::{IpAddr, Ipv4Addr};
@@ -12,6 +13,7 @@ pub struct Config {
     #[serde(default = "default_port")]
     /// The port of MPD to connect to
     pub port: u16,
+    #[serde(default = "default_retries")]
     /// Amount of time to retry to connect
     pub retries: isize,
 }
@@ -22,12 +24,16 @@ impl Default for Config {
     }
 }
 
+const DEFAULT_ADDR: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+const DEFAULT_PORT: u16 = 6600;
+const DEFAULT_RETRIES: isize = 3;
+
 impl Config {
     pub fn new() -> Self {
         Self {
-            addr: default_addr(),
-            port: default_port(),
-            retries: 3,
+            addr: DEFAULT_ADDR,
+            port: DEFAULT_PORT,
+            retries: DEFAULT_RETRIES,
         }
     }
 
@@ -66,37 +72,50 @@ impl Config {
 
     /// Loads the config file.
     ///
-    /// # Behaviour
+    /// ## Behaviour
     /// - If the file does not exist, it will use the standard config instead.
     /// - If a value is missing from the config it will warn the user and use the default value.
-    /// - If the `$MPD_HOST` or `$MPD_PORT` enviroment variable is defined,
+    /// - If the `$MPD_HOST` or `$MPD_PORT` environment variable is defined,
     /// it will take its values instead of the ones specified in the config as per
     /// the [MPD client specifications](https://mpd.readthedocs.io/en/stable/client.html#connecting-to-mpd)
+    /// - If an argument is specified it will use the value from the argument
     ///
     /// ## Errors
     /// - PermissionDenied if the process lacks the permissions to read the file
     /// - InvalidData if the file read contains invalid UTF-8
-    /// - InvalidData if the file cannot be deserialised into a config
-    /// - Some other I/O eror further specified in [fs::read_to_string]
-    pub async fn load_config(file: &Path) -> io::Result<Self> {
-        let mut config = {
-            if !file.is_file() {
-                eprintln!("Could not find config file. Using default values instead");
-                Self::new()
-            } else {
-                let data = fs::read_to_string(file).await?;
-
-                match toml::from_str(&data) {
-                    Ok(config) => config,
-                    Err(err) => {
-                        return Err(io::Error::new(io::ErrorKind::InvalidData, err.message()));
-                    }
-                }
-            }
+    /// - InvalidData if the file cannot be deserialized into a config
+    /// - Some other I/O error further specified in [fs::read_to_string]
+    pub async fn load_config(file: &Path, matches: &ArgMatches) -> io::Result<Self> {
+        let mut config = if file.exists() {
+            Self::load_from_file(file).await?
+        } else {
+            eprintln!("Could not find config file, using default values instead");
+            Self::new()
         };
 
+        config.load_from_env_vars()?;
+
+        config.load_from_args(matches);
+
+        Ok(config)
+    }
+
+    fn load_from_args(&mut self, matches: &ArgMatches) {
+        if let Some(port) = matches.get_one::<u16>("port") {
+            self.port = *port;
+        }
+        if let Some(addr) = matches.get_one::<IpAddr>("addr") {
+            self.addr = *addr;
+        }
+        if let Some(retries) = matches.get_one::<isize>("retries") {
+            self.retries = *retries;
+        }
+    }
+
+    /// Loads values $MPD_HOST and $MPD_PORT from environment
+    fn load_from_env_vars(&mut self) -> io::Result<()> {
         if let Ok(addr) = env::var("MPD_HOST") {
-            config.addr =
+            self.addr =
                 match addr.parse() {
                     Ok(a) => a,
                     Err(_) => return Err(io::Error::new(
@@ -107,7 +126,7 @@ impl Config {
         }
 
         if let Ok(port) = env::var("MPD_PORT") {
-            config.port = match port.parse() {
+            self.port = match port.parse() {
                 Ok(p) => p,
                 Err(_) => {
                     return Err(io::Error::new(
@@ -118,13 +137,31 @@ impl Config {
             }
         }
 
-        Ok(config)
+        Ok(())
+    }
+
+    /// Loads config from file
+    async fn load_from_file(file: &Path) -> io::Result<Self> {
+        let data = fs::read_to_string(file).await?;
+
+        match toml::from_str(&data) {
+            Ok(config) => Ok(config),
+            Err(err) => {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, err.message()));
+            }
+        }
     }
 }
 
 fn default_addr() -> IpAddr {
-    IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))
+    eprintln!("Missing value `addr` in config, using default: {DEFAULT_ADDR}");
+    DEFAULT_ADDR
 }
 fn default_port() -> u16 {
-    6600
+    eprintln!("Missing value `port` in config, using default: {DEFAULT_ADDR}");
+    DEFAULT_PORT
+}
+fn default_retries() -> isize {
+    eprintln!("Missing value `retries` in config, using default: {DEFAULT_ADDR}");
+    DEFAULT_RETRIES
 }
