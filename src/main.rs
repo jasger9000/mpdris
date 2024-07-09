@@ -1,8 +1,8 @@
+mod args;
 mod config;
 mod connection;
 
 use async_std::sync::Mutex;
-use clap::{arg, value_parser, Command};
 use libc::{
     EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
 };
@@ -19,33 +19,28 @@ use signal_hook::flag;
 use signal_hook::iterator::Signals;
 use signal_hook::low_level::emulate_default_handler;
 
+use crate::args::Args;
 use crate::config::Config;
 use crate::connection::MpdClient;
 
 #[rustfmt::skip]
-const VERSION_STR: &str = concat!("v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
+const VERSION_STR: &str = concat!("Running ", env!("CARGO_BIN_NAME"), " v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
 
 #[cfg(target_os = "linux")]
 #[async_std::main]
 async fn main() {
     let config_path = get_config_path();
-
-    #[rustfmt::skip] // this gets really messy when formatted as multiline
-    let matches = Command::new(env!("CARGO_BIN_NAME"))
-        .version(VERSION_STR)
-        .about(env!("CARGO_PKG_DESCRIPTION"))
-        .arg(arg!(-p --port <PORT> "The port over which to connect to mpd").value_parser(value_parser!(u16)))
-        .arg(arg!(-a --addr <ADDRESS> "the ip address over which to connect to mpd"))
-        .arg(arg!(--retries <AMOUNT> "Amount of times mpDris retries to connect to mpd before exiting. Set to -1 to retry infinite times").value_parser(value_parser!(isize)))
-        .arg(arg!(--"no-spawn-daemon" "When set does not try to fork into a daemon"))
-        .arg(arg!(--systemd "When set acts as a daemon without forking the process"))
-        .get_matches();
+    let args: Args = argh::from_env();
+    if args.version {
+        println!("{}", VERSION_STR);
+        exit(EXIT_SUCCESS);
+    }
 
     // subscribe to signals
     let mut signals = {
         // decide whether, we should fork
-        let is_daemon = !matches.get_flag("no-spawn-daemon") || matches.get_flag("systemd");
-        let should_fork = !matches.get_flag("no-spawn-daemon") && !matches.get_flag("systemd");
+        let is_daemon = !args.no_spawn_daemon || args.service;
+        let should_fork = !args.no_spawn_daemon && !args.service;
 
         if should_fork {
             daemonize();
@@ -58,7 +53,7 @@ async fn main() {
     };
 
     let config = {
-        let config = Config::load_config(config_path.as_path(), &matches)
+        let config = Config::load_config(config_path.as_path(), &args)
             .await
             .unwrap_or_else(|err| {
                 eprintln!("Error occurred while trying to load the config: {err}");
@@ -86,7 +81,7 @@ async fn main() {
         match signal {
             SIGHUP => {
                 println!("Received SIGHUP, reloading config");
-                match Config::load_config(&config_path, &matches).await {
+                match Config::load_config(&config_path, &args).await {
                     Ok(c) => {
                         *config.lock().await = c;
 

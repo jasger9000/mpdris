@@ -1,5 +1,5 @@
+use crate::args::Args;
 use async_std::{fs, io};
-use clap::ArgMatches;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::net::{IpAddr, Ipv4Addr};
@@ -85,7 +85,7 @@ impl Config {
     /// - InvalidData if the file read contains invalid UTF-8
     /// - InvalidData if the file cannot be deserialized into a config
     /// - Some other I/O error further specified in [fs::read_to_string]
-    pub async fn load_config(file: &Path, matches: &ArgMatches) -> io::Result<Self> {
+    pub async fn load_config(file: &Path, args: &Args) -> io::Result<Self> {
         let mut config = if file.exists() {
             Self::load_from_file(file).await?
         } else {
@@ -95,20 +95,20 @@ impl Config {
 
         config.load_from_env_vars()?;
 
-        config.load_from_args(matches);
+        config.load_from_args(args);
 
         Ok(config)
     }
 
-    fn load_from_args(&mut self, matches: &ArgMatches) {
-        if let Some(port) = matches.get_one::<u16>("port") {
-            self.port = *port;
+    fn load_from_args(&mut self, args: &Args) {
+        if let Some(port) = args.port {
+            self.port = port;
         }
-        if let Some(addr) = matches.get_one::<IpAddr>("addr") {
-            self.addr = *addr;
+        if let Some(addr) = args.addr {
+            self.addr = addr;
         }
-        if let Some(retries) = matches.get_one::<isize>("retries") {
-            self.retries = *retries;
+        if let Some(retries) = args.retries {
+            self.retries = retries;
         }
     }
 
