@@ -3,7 +3,7 @@ mod error;
 use async_std::io::{BufReader, BufWriter};
 use async_std::net::TcpStream;
 use async_std::sync::Mutex;
-use async_std::task::sleep;
+use async_std::task::{sleep, spawn, JoinHandle};
 use std::io;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
@@ -52,12 +52,28 @@ pub enum Repeat {
 }
 
 pub struct MpdConnection {
+pub struct MpdClient {
+    connection: Arc<Mutex<MpdConnection>>,
+    #[allow(unused)]
+    ping_task: JoinHandle<()>,
+}
+
+struct MpdConnection {
     reader: BufReader<ReadHalf<TcpStream>>,
     writer: BufWriter<WriteHalf<TcpStream>>,
     config: Arc<Mutex<Config>>,
 }
 
 impl MpdConnection {
+    pub async fn new(config: Arc<Mutex<Config>>) -> io::Result<Self> {
+        let (r, w) = {
+            let c = config.lock().await;
+            Self::connect(c.addr, c.port, c.retries).await?
+        };
+        
+        Ok(Self { reader: r, writer: w, config })
+    }
+    
     pub async fn request_data(&mut self, request: &str) -> Result<Vec<(String, String)>> {
         self.writer
             .write_all(format!("{request}\n").as_bytes())
@@ -101,6 +117,74 @@ impl MpdConnection {
         }
 
         Ok(data)
+    }
+    
+    async fn connect(addr: IpAddr, port: u16, retries: isize) -> io::Result<(BufReader<ReadHalf<TcpStream>>, BufWriter<WriteHalf<TcpStream>>)> {
+        let mut attempts = 0;
+        let addr = &SocketAddr::new(addr, port);
+
+        loop {
+            match TcpStream::connect(addr).await {
+                Ok(stream) => {
+                    let (r, w) = stream.split();
+
+                    println!("Connection established");
+                    return Ok((BufReader::new(r), BufWriter::new(w)));
+                }
+                Err(err) => {
+                    if retries > 0 {
+                        eprintln!(
+                            "Could not connect (tries left {}): {err}",
+                            retries - attempts
+                        );
+
+                        attempts += 1;
+                        if attempts > retries {
+                            return Err(err.into());
+                        }
+                    } else {
+                        eprintln!("Could not connect: {err}");
+                    }
+
+                    eprintln!("Retrying in 3 seconds");
+                    sleep(Duration::from_secs(3)).await;
+                }
+            }
+        }
+    }
+    
+    pub async fn reconnect(&mut self) -> Result<()> {
+        {
+            let c = self.config.lock().await;
+            
+            println!(
+                "Reconnecting to server on ip-address: {} using port: {}",
+                c.addr, c.port
+            );
+            let (r, w) = Self::connect(c.addr, c.port, c.retries).await?;
+            self.reader = r;
+            self.writer = w;
+        }
+        self.read_data().await?;
+        println!("Setting binary output limit to {SIZE_LIMIT} bytes");
+        self.request_data(concatcp!("binarylimit ", SIZE_LIMIT))
+            .await?;
+
+        Ok(())
+    }
+}
+
+impl MpdClient {
+    pub async fn request_data(&mut self, request: &str) -> Result<Vec<(String, String)>> {
+        let mut c = self.connection.lock().await;
+        
+        c.request_data(request).await
+    }
+
+    pub async fn reconnect(&mut self) -> Result<()> {
+        let mut c = self.connection.lock().await;
+
+        c.reconnect().await
     }
 
     /// Start playback from current song position
@@ -198,81 +282,41 @@ impl MpdConnection {
             c.addr, c.port
         );
 
-        let (r, w) = connect(c.addr, c.port, c.retries).await?;
         drop(c);
+        let connection = Arc::new(Mutex::new(MpdConnection::new(config.clone()).await?));
 
-        let mut conn = Self {
-            reader: r,
-            writer: w,
-            config,
+        let ping_conn = Arc::clone(&connection);
+        let ping_task = spawn(async move {
+            loop {
+                let mut conn = ping_conn.lock().await;
+                
+                match conn.request_data("ping").await {
+                    Ok(_) => {},
+                    Err(err) => {
+                        eprintln!("Could not ping MPD: {err}");
+                    },
+                };
+                drop(conn);
+                sleep(Duration::from_secs(15)).await;
+            }
+        });
+        
+        let mut client = Self {
+            connection,
+            ping_task,
+            status: Arc::new(Mutex::new(Status::new())),
         };
 
         println!("Validating connection");
-        conn.read_data().await?;
+        client.connection.lock().await.read_data().await?;
         println!("Setting binary output limit to {SIZE_LIMIT} bytes");
-        conn.request_data(concatcp!("binarylimit ", SIZE_LIMIT))
+        client.request_data(concatcp!("binarylimit ", SIZE_LIMIT))
             .await?;
 
-        Ok(conn)
+        client.update_status().await?;
+
+        Ok(client)
     }
 
-    pub async fn reconnect(&mut self) -> Result<()> {
-        {
-            let config = self.config.lock().await;
 
-            println!(
-                "Reconnecting to server on ip-address: {} using port: {}",
-                config.addr, config.port
-            );
-            let (r, w) = connect(config.addr, config.port, config.retries).await?;
-            self.reader = r;
-            self.writer = w;
-        }
-        self.read_data().await?;
-        println!("Setting binary output limit to {SIZE_LIMIT} bytes");
-        self.request_data(concatcp!("binarylimit ", SIZE_LIMIT))
-            .await?;
-
-        Ok(())
-    }
-}
-
-async fn connect(
-    addr: IpAddr,
-    port: u16,
-    retries: isize,
-) -> io::Result<(
-    BufReader<ReadHalf<TcpStream>>,
-    BufWriter<WriteHalf<TcpStream>>,
-)> {
-    let mut attempts = 0;
-    let addr = &SocketAddr::new(addr, port);
-
-    let (r, w) = loop {
-        match TcpStream::connect(addr).await {
-            Ok(stream) => {
-                break stream.split();
-            }
-            Err(err) => {
-                if retries > 0 {
-                    eprintln!(
-                        "Could not connect (tries left {}): {err}",
-                        retries - attempts
-                    );
-
-                    attempts += 1;
-                    if attempts > retries {
-                        return Err(err.into());
-                    }
-                } else {
-                    eprintln!("Could not connect: {err}");
-                }
-
-                eprintln!("Retrying in 3 seconds");
-                sleep(Duration::from_secs(3)).await;
-            }
-        }
-    };
-
-    Ok((BufReader::new(r), BufWriter::new(w)))
 }

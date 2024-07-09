@@ -20,7 +20,7 @@ use signal_hook::iterator::Signals;
 use signal_hook::low_level::emulate_default_handler;
 
 use crate::config::Config;
-use crate::connection::MpdConnection;
+use crate::connection::MpdClient;
 
 #[rustfmt::skip]
 const VERSION_STR: &str = concat!("v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
@@ -76,7 +76,7 @@ async fn main() {
     // Main app here
 
     let conn = Arc::new(Mutex::new(
-        MpdConnection::new(config.clone())
+        MpdClient::new(config.clone())
             .await
             .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}")),
     ));
