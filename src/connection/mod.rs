@@ -2,11 +2,10 @@ mod error;
 
 use async_std::io::{BufReader, BufWriter};
 use async_std::net::TcpStream;
-use async_std::sync::Mutex;
+use async_std::sync::{Arc, Mutex};
 use async_std::task::{sleep, spawn, JoinHandle};
 use std::io;
 use std::net::{IpAddr, SocketAddr};
-use std::sync::Arc;
 use std::time::Duration;
 
 use crate::config::Config;
@@ -30,6 +29,8 @@ pub struct Status {
     pub shuffle: bool,
     /// elapsed time of the current song in seconds
     pub elapsed: usize,
+    pub current_song: Option<usize>,
+    pub playlist_length: usize,
 }
 
 impl Status {
@@ -40,6 +41,8 @@ impl Status {
             repeat: Repeat::Off,
             shuffle: false,
             elapsed: 0,
+            current_song: None,
+            playlist_length: 0,
         }
     }
 }
@@ -53,6 +56,8 @@ pub enum Repeat {
 
 pub struct MpdClient {
     connection: Arc<Mutex<MpdConnection>>,
+    /// Cached status
+    status: Arc<Mutex<Status>>,
     #[allow(unused)]
     ping_task: JoinHandle<()>,
 }
@@ -69,8 +74,12 @@ impl MpdConnection {
             let c = config.lock().await;
             Self::connect(c.addr, c.port, c.retries).await?
         };
-        
-        Ok(Self { reader: r, writer: w, config })
+
+        Ok(Self {
+            reader: r,
+            writer: w,
+            config,
+        })
     }
 
     pub async fn request_data(&mut self, request: &str) -> Result<Vec<(String, String)>> {
@@ -247,10 +256,20 @@ impl MpdClient {
         Ok(())
     }
 
-    pub async fn get_status(&mut self) -> Result<Status> {
-        let res = self.request_data("status").await?;
+    pub fn get_status(&self) -> Arc<Mutex<Status>> {
+        self.status.clone()
+    }
 
-        let mut status = Status::new();
+    pub async fn update_status(&self) -> Result<()> {
+        let mut s = self.status.lock().await;
+        let mut conn = self.connection.lock().await;
+
+        return Self::_update_status(&mut conn, &mut s).await;
+    }
+
+    async fn _update_status(conn: &mut MpdConnection, status: &mut Status) -> Result<()> {
+        let res = conn.request_data("status").await?;
+
         let mut is_single = false;
 
         for (k, v) in res {
@@ -269,6 +288,13 @@ impl MpdClient {
                 "volume" => status.volume = v.parse().unwrap_or(0),
                 "random" => status.shuffle = v.parse().unwrap_or(0) > 0,
                 "elapsed" => status.elapsed = v.parse().unwrap_or(0),
+                "songid" => {
+                    status.current_song = match v.parse() {
+                        Ok(id) => Some(id),
+                        Err(_) => None,
+                    }
+                }
+                "playlistlength" => status.playlist_length = v.parse().unwrap_or(0),
                 &_ => {}
             }
         }
@@ -277,7 +303,7 @@ impl MpdClient {
             status.repeat = Repeat::Single;
         }
 
-        Ok(status)
+        Ok(())
     }
 
     pub async fn new(config: Arc<Mutex<Config>>) -> Result<Self> {
@@ -289,28 +315,29 @@ impl MpdClient {
         );
 
         drop(c);
+        let status = Arc::new(Mutex::new(Status::new()));
         let connection = Arc::new(Mutex::new(MpdConnection::new(config.clone()).await?));
 
         let ping_conn = Arc::clone(&connection);
         let ping_task = spawn(async move {
             loop {
                 let mut conn = ping_conn.lock().await;
-                
+
                 match conn.request_data("ping").await {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(err) => {
                         eprintln!("Could not ping MPD: {err}");
-                    },
+                    }
                 };
                 drop(conn);
                 sleep(Duration::from_secs(15)).await;
             }
         });
-        
-        let mut client = Self {
+
+        let client = Self {
             connection,
             ping_task,
-            status: Arc::new(Mutex::new(Status::new())),
+            status,
         };
 
         println!("Validating connection");
@@ -323,6 +350,4 @@ impl MpdClient {
 
         Ok(client)
     }
-
-
 }
