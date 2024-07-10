@@ -69,7 +69,7 @@ async fn main() {
     };
 
     // Main app here
-    let mut conn = Arc::new(
+    let conn = Arc::new(
         MpdClient::new(config.clone())
             .await
             .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}")),

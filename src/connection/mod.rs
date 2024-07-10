@@ -20,6 +20,8 @@ pub use self::error::*;
 
 /// How many bytes MPD sends at once
 const SIZE_LIMIT: usize = 1024;
+/// Request that gets send when the connection waits for something to happen
+const IDLE_REQUEST: &str = "idle stored_playlist playlist player mixer options";
 
 #[derive(Debug)]
 pub struct Status {
@@ -60,6 +62,8 @@ pub struct MpdClient {
     status: Arc<Mutex<Status>>,
     #[allow(unused)]
     ping_task: JoinHandle<()>,
+    #[allow(unused)]
+    idle_task: JoinHandle<()>,
 }
 
 struct MpdConnection {
@@ -318,7 +322,33 @@ impl MpdClient {
         let status = Arc::new(Mutex::new(Status::new()));
         let connection = Arc::new(Mutex::new(MpdConnection::new(config.clone()).await?));
 
+        let mut idle_conn = MpdConnection::new(config.clone()).await?;
+        let idle_status = Arc::clone(&status);
         let ping_conn = Arc::clone(&connection);
+
+        idle_conn.read_data().await?;
+        idle_conn.request_data(concatcp!("binarylimit ", SIZE_LIMIT))
+            .await?;
+
+        let idle_task = spawn(async move {
+            loop {
+                // TODO send something changed signal to dbus
+                let res = idle_conn.request_data(IDLE_REQUEST).await;
+                if let Err(err) = res {
+                    eprintln!("Error while awaiting change in MPD: {err}");
+                    continue;
+                }
+                drop(res);
+
+                let mut s = idle_status.lock().await;
+                match Self::_update_status(&mut idle_conn, &mut s).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("Could not update status: {err}");
+                    }
+                }
+            }
+        });
         let ping_task = spawn(async move {
             loop {
                 let mut conn = ping_conn.lock().await;
@@ -337,6 +367,7 @@ impl MpdClient {
         let client = Self {
             connection,
             ping_task,
+            idle_task,
             status,
         };
 
