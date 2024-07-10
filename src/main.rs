@@ -69,12 +69,11 @@ async fn main() {
     };
 
     // Main app here
-
-    let conn = Arc::new(Mutex::new(
+    let mut conn = Arc::new(
         MpdClient::new(config.clone())
             .await
             .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}")),
-    ));
+    );
 
     let handle = signals.handle();
     for signal in &mut signals {
@@ -85,7 +84,7 @@ async fn main() {
                     Ok(c) => {
                         *config.lock().await = c;
 
-                        conn.lock().await.reconnect().await.unwrap_or_else(|err| {
+                        conn.reconnect().await.unwrap_or_else(|err| {
                             eprintln!("Could not reconnect to mpd: {err}");
                             eprintln!("Exiting...");
                             exit(EXIT_FAILURE);

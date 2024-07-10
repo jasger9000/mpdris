@@ -51,7 +51,6 @@ pub enum Repeat {
     Single = 2,
 }
 
-pub struct MpdConnection {
 pub struct MpdClient {
     connection: Arc<Mutex<MpdConnection>>,
     #[allow(unused)]
@@ -73,7 +72,7 @@ impl MpdConnection {
         
         Ok(Self { reader: r, writer: w, config })
     }
-    
+
     pub async fn request_data(&mut self, request: &str) -> Result<Vec<(String, String)>> {
         self.writer
             .write_all(format!("{request}\n").as_bytes())
@@ -118,8 +117,15 @@ impl MpdConnection {
 
         Ok(data)
     }
-    
-    async fn connect(addr: IpAddr, port: u16, retries: isize) -> io::Result<(BufReader<ReadHalf<TcpStream>>, BufWriter<WriteHalf<TcpStream>>)> {
+
+    async fn connect(
+        addr: IpAddr,
+        port: u16,
+        retries: isize,
+    ) -> io::Result<(
+        BufReader<ReadHalf<TcpStream>>,
+        BufWriter<WriteHalf<TcpStream>>,
+    )> {
         let mut attempts = 0;
         let addr = &SocketAddr::new(addr, port);
 
@@ -152,11 +158,11 @@ impl MpdConnection {
             }
         }
     }
-    
+
     pub async fn reconnect(&mut self) -> Result<()> {
         {
             let c = self.config.lock().await;
-            
+
             println!(
                 "Reconnecting to server on ip-address: {} using port: {}",
                 c.addr, c.port
@@ -175,20 +181,20 @@ impl MpdConnection {
 }
 
 impl MpdClient {
-    pub async fn request_data(&mut self, request: &str) -> Result<Vec<(String, String)>> {
+    pub async fn request_data(&self, request: &str) -> Result<Vec<(String, String)>> {
         let mut c = self.connection.lock().await;
-        
+
         c.request_data(request).await
     }
 
-    pub async fn reconnect(&mut self) -> Result<()> {
+    pub async fn reconnect(&self) -> Result<()> {
         let mut c = self.connection.lock().await;
 
         c.reconnect().await
     }
 
     /// Start playback from current song position
-    pub async fn play(&mut self) -> Result<()> {
+    pub async fn play(&self) -> Result<()> {
         let _ = self.request_data("pause 0").await?;
 
         Ok(())
@@ -196,7 +202,7 @@ impl MpdClient {
 
     /// Seek to a position in the current song with offset in seconds.
     /// To seek relative to the current position use [Self::seek_relative]
-    pub async fn seek(&mut self, time: Duration) -> Result<()> {
+    pub async fn seek(&self, time: Duration) -> Result<()> {
         let _ = self
             .request_data(&format!(
                 "seekcur {}.{}",
@@ -211,7 +217,7 @@ impl MpdClient {
     /// Seek to a position in the current song relative to the current position with offset in
     /// milliseconds.
     /// To seek from the songs begin (absolute) use [Self::seek]
-    pub async fn seek_relative(&mut self, offset: i64) -> Result<()> {
+    pub async fn seek_relative(&self, offset: i64) -> Result<()> {
         let prefix = if offset > 0 { '+' } else { '-' };
         let dur = Duration::from_micros(offset.unsigned_abs());
 
@@ -228,14 +234,14 @@ impl MpdClient {
     }
 
     /// Pause playback
-    pub async fn pause(&mut self) -> Result<()> {
+    pub async fn pause(&self) -> Result<()> {
         let _ = self.request_data("pause 1").await?;
 
         Ok(())
     }
 
     /// Toggle playback, e.g. pauses when playing and play when paused
-    pub async fn toggle_play(&mut self) -> Result<()> {
+    pub async fn toggle_play(&self) -> Result<()> {
         let _ = self.request_data("pause").await?;
 
         Ok(())
