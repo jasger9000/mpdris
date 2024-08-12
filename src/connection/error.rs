@@ -17,7 +17,7 @@ pub type MPDResult<T> = Result<T, Error>;
 #[derive(Debug)]
 pub struct Error {
     pub kind: ErrorKind,
-    stored: Box<dyn stdError>,
+    stored: Box<dyn stdError + Send + Sync>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -408,7 +408,7 @@ struct StringMessageError {
 /// [Error::source()]. Mostly used to wrap [I/O](io::Error) and [Utf8Error]s
 #[derive(Debug)]
 struct SourceError {
-    source: Box<dyn stdError>,
+    source: Box<dyn stdError + Send + Sync>,
 }
 
 /// Internal type for holding a successfully parsed result from [Error::try_from_mpd()]

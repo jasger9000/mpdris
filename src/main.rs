@@ -69,11 +69,14 @@ async fn main() {
     };
 
     // Main app here
-    let conn = Arc::new(
-        MpdClient::new(config.clone())
-            .await
-            .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}")),
-    );
+    let (conn, recv) = MpdClient::new(config.clone())
+        .await
+        .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}"));
+    let conn = Arc::new(conn);
+
+    let _interface = dbus::serve(conn.clone(), recv)
+        .await
+        .unwrap_or_else(|err| panic!("Could not serve the dbus interface: {err}"));
 
     let handle = signals.handle();
     for signal in &mut signals {

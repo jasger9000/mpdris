@@ -6,6 +6,7 @@ use async_std::net::TcpStream;
 use async_std::sync::{Arc, Mutex};
 use async_std::task::{sleep, spawn, JoinHandle};
 use std::net::{IpAddr, SocketAddr};
+use async_std::channel::{bounded, Receiver, Sender};
 use std::time::Duration;
 
 use crate::config::Config;
@@ -28,6 +29,7 @@ pub struct MpdClient {
     connection: Arc<Mutex<MpdConnection>>,
     /// Cached status
     status: Arc<Mutex<Status>>,
+    sender: Sender<StateChanged>,
     #[allow(unused)]
     ping_task: JoinHandle<()>,
     #[allow(unused)]
@@ -246,7 +248,7 @@ impl MpdClient {
         Ok(())
     }
 
-    pub async fn new(config: Arc<Mutex<Config>>) -> Result<Self> {
+    pub async fn new(config: Arc<Mutex<Config>>) -> Result<(Self, Receiver<StateChanged>)> {
         let c = config.lock().await;
 
         println!(
@@ -255,10 +257,12 @@ impl MpdClient {
         );
 
         drop(c);
+        let (sender, recv) = bounded(1);
         let status = Arc::new(Mutex::new(Status::new()));
         let connection = Arc::new(Mutex::new(MpdConnection::new(config.clone()).await?));
 
         let mut idle_conn = MpdConnection::new(config.clone()).await?;
+        let idle_sender = sender.clone();
         let idle_status = Arc::clone(&status);
         let ping_conn = Arc::clone(&connection);
 
@@ -269,22 +273,30 @@ impl MpdClient {
 
         let idle_task = spawn(async move {
             loop {
-                // TODO send something changed signal to dbus
-                let res = idle_conn.request_data(IDLE_REQUEST).await;
-                if let Err(err) = res {
-                    eprintln!("Error while awaiting change in MPD: {err}");
-                    continue;
-                }
-                drop(res);
+                match idle_conn.request_data(IDLE_REQUEST).await {
+                    Ok(res) => {
+                        let mut s = idle_status.lock().await;
 
-                let mut s = idle_status.lock().await;
-                match Self::_update_status(&mut idle_conn, &mut s).await {
-                    Ok(_) => {}
+                        match status::update_status(&mut idle_conn, &mut s, &idle_sender).await {
+                            Ok(could_be_seeking) => {
+                                if res[0].1 == "player" && could_be_seeking {
+                                    let elapsed = s.elapsed.unwrap().as_micros() as u64;
+                                    drop(s);
+
+                                    idle_sender.send(StateChanged::Position(elapsed)).await.unwrap();
+                                }
+                            }
+                            Err(err) => {
+                                eprintln!("Could not update status: {err}");
+                            }
+                        }
+                    }
                     Err(err) => {
-                        eprintln!("Could not update status: {err}");
+                        eprintln!("Error while awaiting change in MPD: {err}");
+                        continue;
                     }
                 }
-            }
+           }
         });
         let ping_task = spawn(async move {
             loop {
@@ -303,6 +315,7 @@ impl MpdClient {
 
         let client = Self {
             connection,
+            sender,
             ping_task,
             idle_task,
             status,
@@ -317,6 +330,6 @@ impl MpdClient {
 
         client.update_status().await?;
 
-        Ok(client)
+        Ok((client, recv))
     }
 }
