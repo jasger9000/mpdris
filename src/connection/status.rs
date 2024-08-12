@@ -1,4 +1,4 @@
-use std::sync::mpsc::Sender;
+use async_std::channel::Sender;
 use std::time::Duration;
 
 use super::MPDResult;
@@ -111,7 +111,7 @@ impl From<Vec<(String, String)>> for Song {
 #[derive(PartialEq, Eq, Debug)]
 pub enum StateChanged {
     Position(u64),
-    Song,
+    Song(bool, bool),
     Playlist,
     PlayState,
     Volume,
@@ -193,28 +193,34 @@ pub async fn update_status(
     if is_single {
         status.repeat = Repeat::Single;
     }
-    
-    // TODO check if current, prev & next id are still valid
-    if old_status.state != PlayState::Playing && status.state != PlayState::Playing &&
-        old_status.elapsed != status.elapsed
+
+    if old_status.state != PlayState::Playing
+        && status.state != PlayState::Playing
+        && old_status.elapsed != status.elapsed
     {
-        sender.send(StateChanged::Position(status.elapsed.unwrap().as_micros() as u64)).unwrap();
+        #[rustfmt::skip]
+        sender.send(StateChanged::Position(status.elapsed.unwrap().as_micros() as u64)).await.unwrap();
     } else if old_status.state != status.state {
-        sender.send(StateChanged::PlayState).unwrap();
+        sender.send(StateChanged::PlayState).await.unwrap();
     } else if old_status.volume != status.volume {
-        sender.send(StateChanged::Volume).unwrap();
+        sender.send(StateChanged::Volume).await.unwrap();
     } else if old_status.repeat != status.repeat {
-        sender.send(StateChanged::Repeat).unwrap();
+        sender.send(StateChanged::Repeat).await.unwrap();
     } else if old_status.shuffle != status.shuffle {
-        sender.send(StateChanged::Shuffle).unwrap();
+        sender.send(StateChanged::Shuffle).await.unwrap();
     } else if old_status.current_song != status.current_song {
-        sender.send(StateChanged::Song).unwrap();
+        let prev = old_status.playlist_length != status.playlist_length
+            && ((status.playlist_length < 1) != (old_status.playlist_length < 1));
+        let next = old_status.next_song != status.next_song;
+        sender.send(StateChanged::Song(prev, next)).await.unwrap();
     } else if old_status.next_song.is_some() != status.next_song.is_some()
         || old_status.playlist_length != status.playlist_length
     {
-        sender.send(StateChanged::Playlist).unwrap();
+        sender.send(StateChanged::Playlist).await.unwrap();
     }
-   
-    let could_be_seeking = old_status.current_song == status.current_song && old_status.state == status.state && status.state == PlayState::Playing;
+
+    let could_be_seeking = old_status.current_song == status.current_song
+        && old_status.state == status.state
+        && status.state == PlayState::Playing;
     Ok(could_be_seeking)
 }

@@ -1,6 +1,7 @@
 mod args;
 mod config;
 mod connection;
+mod dbus;
 
 use async_std::sync::Mutex;
 use libc::{

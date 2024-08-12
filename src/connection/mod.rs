@@ -296,7 +296,7 @@ impl MpdClient {
                         continue;
                     }
                 }
-           }
+            }
         });
         let ping_task = spawn(async move {
             loop {

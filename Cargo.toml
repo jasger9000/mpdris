@@ -12,7 +12,7 @@ repository = "https://github.com/jasger9000/mpDris"
 [dependencies]
 argh = "0.1.12"
 const_format = "0.2.32"
-dbus = "0.9.7"
+zbus = "4.2.2"
 libc = "0.2.155"
 serde = { version = "1.0.193", features = ["derive"] }
 toml = "0.8.13"
@@ -25,4 +25,3 @@ strip = true
 opt-level = "z"
 lto = true
 codegen-units = 1
-panic = "abort"
