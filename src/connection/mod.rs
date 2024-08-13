@@ -1,12 +1,12 @@
 mod error;
 mod status;
 
+use async_std::channel::{bounded, Receiver, Sender};
 use async_std::io::{self, BufReader, BufWriter};
 use async_std::net::TcpStream;
 use async_std::sync::{Arc, Mutex};
 use async_std::task::{sleep, spawn, JoinHandle};
 use std::net::{IpAddr, SocketAddr};
-use async_std::channel::{bounded, Receiver, Sender};
 use std::time::Duration;
 
 use crate::config::Config;
@@ -57,9 +57,7 @@ impl MpdConnection {
     }
 
     pub async fn request_data(&mut self, request: &str) -> Result<Vec<(String, String)>> {
-        self.writer
-            .write_all(format!("{request}\n").as_bytes())
-            .await?;
+        self.writer.write_all(format!("{request}\n").as_bytes()).await?;
         self.writer.flush().await?; // wait until the request is definitely sent to mpd
 
         self.read_data().await
@@ -105,10 +103,7 @@ impl MpdConnection {
         addr: IpAddr,
         port: u16,
         retries: isize,
-    ) -> io::Result<(
-        BufReader<ReadHalf<TcpStream>>,
-        BufWriter<WriteHalf<TcpStream>>,
-    )> {
+    ) -> io::Result<(BufReader<ReadHalf<TcpStream>>, BufWriter<WriteHalf<TcpStream>>)> {
         let mut attempts = 0;
         let addr = &SocketAddr::new(addr, port);
 
@@ -122,10 +117,7 @@ impl MpdConnection {
                 }
                 Err(err) => {
                     if retries > 0 {
-                        eprintln!(
-                            "Could not connect (tries left {}): {err}",
-                            retries - attempts
-                        );
+                        eprintln!("Could not connect (tries left {}): {err}", retries - attempts);
 
                         attempts += 1;
                         if attempts > retries {
@@ -146,18 +138,14 @@ impl MpdConnection {
         {
             let c = self.config.lock().await;
 
-            println!(
-                "Reconnecting to server on ip-address: {} using port: {}",
-                c.addr, c.port
-            );
+            println!("Reconnecting to server on ip-address: {} using port: {}", c.addr, c.port);
             let (r, w) = Self::connect(c.addr, c.port, c.retries).await?;
             self.reader = r;
             self.writer = w;
         }
         self.read_data().await?;
         println!("Setting binary output limit to {SIZE_LIMIT} bytes");
-        self.request_data(concatcp!("binarylimit ", SIZE_LIMIT))
-            .await?;
+        self.request_data(concatcp!("binarylimit ", SIZE_LIMIT)).await?;
 
         Ok(())
     }
@@ -187,11 +175,7 @@ impl MpdClient {
     /// To seek relative to the current position use [Self::seek_relative]
     pub async fn seek(&self, time: Duration) -> Result<()> {
         let _ = self
-            .request_data(&format!(
-                "seekcur {}.{}",
-                time.as_secs(),
-                time.subsec_millis()
-            ))
+            .request_data(&format!("seekcur {}.{}", time.as_secs(), time.subsec_millis()))
             .await?;
 
         Ok(())
@@ -203,12 +187,7 @@ impl MpdClient {
         let prefix = if is_positive { '+' } else { '-' };
 
         let _ = self
-            .request_data(&format!(
-                "seekcur {}{}.{}",
-                prefix,
-                offset.as_secs(),
-                offset.subsec_millis()
-            ))
+            .request_data(&format!("seekcur {}{}.{}", prefix, offset.as_secs(), offset.subsec_millis()))
             .await?;
 
         Ok(())
@@ -251,10 +230,7 @@ impl MpdClient {
     pub async fn new(config: Arc<Mutex<Config>>) -> Result<(Self, Receiver<StateChanged>)> {
         let c = config.lock().await;
 
-        println!(
-            "Connecting to server on ip-address: {} using port: {}",
-            c.addr, c.port
-        );
+        println!("Connecting to server on ip-address: {} using port: {}", c.addr, c.port);
 
         drop(c);
         let (sender, recv) = bounded(1);
@@ -267,9 +243,7 @@ impl MpdClient {
         let ping_conn = Arc::clone(&connection);
 
         idle_conn.read_data().await?;
-        idle_conn
-            .request_data(concatcp!("binarylimit ", SIZE_LIMIT))
-            .await?;
+        idle_conn.request_data(concatcp!("binarylimit ", SIZE_LIMIT)).await?;
 
         let idle_task = spawn(async move {
             loop {
@@ -324,9 +298,7 @@ impl MpdClient {
         println!("Validating connection");
         client.connection.lock().await.read_data().await?;
         println!("Setting binary output limit to {SIZE_LIMIT} bytes");
-        client
-            .request_data(concatcp!("binarylimit ", SIZE_LIMIT))
-            .await?;
+        client.request_data(concatcp!("binarylimit ", SIZE_LIMIT)).await?;
 
         client.update_status().await?;
 

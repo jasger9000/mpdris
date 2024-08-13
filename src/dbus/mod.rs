@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use async_std::channel::Receiver;
 use async_std::task::{spawn, JoinHandle};
+use std::sync::Arc;
 use zbus::Connection;
 use zbus::{connection::Builder, InterfaceRef};
 
@@ -44,8 +44,7 @@ pub async fn serve(
 
 async fn send_signals(connection: &Connection, recv: &Receiver<StateChanged>) -> zbus::Result<()> {
     let object_server = connection.object_server();
-    let player_iface_ref: InterfaceRef<PlayerInterface> =
-        object_server.interface(PATH).await.unwrap();
+    let player_iface_ref: InterfaceRef<PlayerInterface> = object_server.interface(PATH).await.unwrap();
 
     loop {
         use StateChanged::*;

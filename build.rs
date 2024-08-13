@@ -2,10 +2,7 @@ use core::panic;
 use std::process::Command;
 
 fn main() {
-    let hash = match Command::new("git")
-        .args(["rev-parse", "--short", "HEAD"])
-        .output()
-    {
+    let hash = match Command::new("git").args(["rev-parse", "--short", "HEAD"]).output() {
         Ok(output) => String::from_utf8(output.stdout).expect("git output is utf-8"),
         _ => panic!("cannot get git hash"),
     };

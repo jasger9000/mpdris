@@ -4,9 +4,7 @@ mod connection;
 mod dbus;
 
 use async_std::sync::Mutex;
-use libc::{
-    EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
-};
+use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use std::cmp::Ordering;
 use std::env;
 use std::ffi::CString;
@@ -54,12 +52,10 @@ async fn main() {
     };
 
     let config = {
-        let config = Config::load_config(config_path.as_path(), &args)
-            .await
-            .unwrap_or_else(|err| {
-                eprintln!("Error occurred while trying to load the config: {err}");
-                exit(EXIT_FAILURE);
-            });
+        let config = Config::load_config(config_path.as_path(), &args).await.unwrap_or_else(|err| {
+            eprintln!("Error occurred while trying to load the config: {err}");
+            exit(EXIT_FAILURE);
+        });
 
         if !config_path.is_file() {
             config.write(&config_path).await.unwrap_or_else(|err| {
@@ -140,10 +136,7 @@ fn daemonize() {
     }
 
     unsafe {
-        if libc::close(STDIN_FILENO) < 0
-            || libc::close(STDOUT_FILENO) < 0
-            || libc::close(STDERR_FILENO) < 0
-        {
+        if libc::close(STDIN_FILENO) < 0 || libc::close(STDOUT_FILENO) < 0 || libc::close(STDERR_FILENO) < 0 {
             panic!("Could not file descriptors stdin, stdout, stderr");
         }
     }
@@ -185,10 +178,7 @@ fn get_config_path() -> PathBuf {
 }
 #[cfg(debug_assertions)]
 fn get_config_path() -> PathBuf {
-    [
-        env::var("PWD").expect("$PWD must always be set").as_str(),
-        "mpDris.conf",
-    ]
-    .iter()
-    .collect()
+    [env::var("PWD").expect("$PWD must always be set").as_str(), "mpDris.conf"]
+        .iter()
+        .collect()
 }

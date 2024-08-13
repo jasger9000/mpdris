@@ -115,14 +115,15 @@ impl Config {
     /// Loads values $MPD_HOST and $MPD_PORT from environment
     fn load_from_env_vars(&mut self) -> io::Result<()> {
         if let Ok(addr) = env::var("MPD_HOST") {
-            self.addr =
-                match addr.parse() {
-                    Ok(a) => a,
-                    Err(_) => return Err(io::Error::new(
+            self.addr = match addr.parse() {
+                Ok(a) => a,
+                Err(_) => {
+                    return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "Could not parse the $MPD_HOST environment variable into a host address.",
-                    )),
+                    ))
                 }
+            }
         }
 
         if let Ok(port) = env::var("MPD_PORT") {

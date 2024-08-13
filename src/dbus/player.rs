@@ -19,10 +19,7 @@ pub struct PlayerInterface {
 impl PlayerInterface {
     pub async fn new(connection: Arc<MpdClient>) -> Self {
         let status = connection.get_status();
-        Self {
-            mpd: connection,
-            status,
-        }
+        Self { mpd: connection, status }
     }
 }
 
@@ -32,17 +29,13 @@ impl PlayerInterface {
         let s = self.status.lock().await;
 
         if let Some(next_id) = s.next_song {
-            match self
-                .mpd
-                .request_data(format!("seekid {next_id} 0").as_str())
-                .await
-            {
+            match self.mpd.request_data(format!("seekid {next_id} 0").as_str()).await {
                 Ok(_) => {}
                 Err(err) => eprintln!("Failed to switch to next song: {err}"),
             }
         } else if s.repeat == Repeat::Off {
             self.mpd.pause().await.unwrap_or_else(|err| {
-                eprintln!("Failed to pause playback because of empty playlist after next: {err}")
+                eprintln!("Failed to pause playback because of empty playlist after next: {err}");
             });
         }
     }
@@ -63,10 +56,8 @@ impl PlayerInterface {
             }
         } else if s.playlist_length <= 1 && s.repeat == Repeat::Off {
             self.mpd.pause().await.unwrap_or_else(|err| {
-                eprintln!(
-                    "Failed to pause playback because of empty playlist after previous: {err}"
-                )
-            })
+                eprintln!("Failed to pause playback because of empty playlist after previous: {err}");
+            });
         }
     }
 
@@ -77,10 +68,9 @@ impl PlayerInterface {
     }
 
     async fn play_pause(&mut self) {
-        self.mpd
-            .toggle_play()
-            .await
-            .unwrap_or_else(|err| eprintln!("Failed to toggle playback: {err}"));
+        self.mpd.toggle_play().await.unwrap_or_else(|err| {
+            eprintln!("Failed to toggle playback: {err}");
+        });
     }
 
     async fn stop(&mut self) {
@@ -97,11 +87,7 @@ impl PlayerInterface {
             .unwrap_or_else(|err| eprintln!("Failed to start playback: {err}"));
     }
 
-    async fn seek(
-        &mut self,
-        ms: i64,
-        #[zbus(signal_context)] ctxt: SignalContext<'_>,
-    ) -> fdo::Result<()> {
+    async fn seek(&mut self, ms: i64, #[zbus(signal_context)] ctxt: SignalContext<'_>) -> fdo::Result<()> {
         let s = self.status.lock().await;
         let is_positive = ms > 0;
         let ms = Duration::from_micros(ms.unsigned_abs());
@@ -112,16 +98,12 @@ impl PlayerInterface {
             return Ok(());
         }
 
-        self.mpd
-            .seek_relative(is_positive, ms)
-            .await
-            .unwrap_or_else(|err| eprintln!("Failed to seek: {err}"));
+        self.mpd.seek_relative(is_positive, ms).await.unwrap_or_else(|err| {
+            eprintln!("Failed to seek: {err}");
+        });
 
-        self.seeked(
-            &ctxt,
-            s.elapsed.unwrap_or(Duration::ZERO).add(ms).as_micros() as u64,
-        )
-        .await?;
+        self.seeked(&ctxt, s.elapsed.unwrap_or(Duration::ZERO).add(ms).as_micros() as u64)
+            .await?;
 
         Ok(())
     }
@@ -144,10 +126,9 @@ impl PlayerInterface {
             return Ok(());
         }
 
-        self.mpd
-            .seek(pos)
-            .await
-            .unwrap_or_else(|err| eprintln!("Failed to set position: {err}"));
+        self.mpd.seek(pos).await.unwrap_or_else(|err| {
+            eprintln!("Failed to set position: {err}");
+        });
 
         self.seeked(&ctxt, ms.unsigned_abs()).await?;
 
@@ -262,11 +243,7 @@ impl PlayerInterface {
             return;
         }
 
-        match self
-            .mpd
-            .request_data(format!("setvol {volume}").as_str())
-            .await
-        {
+        match self.mpd.request_data(format!("setvol {volume}").as_str()).await {
             Ok(_) => {}
             Err(err) => eprintln!("Could not set volume: {err}"),
         }
@@ -276,13 +253,7 @@ impl PlayerInterface {
 
     #[zbus(property)]
     async fn position(&self) -> u64 {
-        let pos = self
-            .status
-            .lock()
-            .await
-            .elapsed
-            .unwrap_or(Duration::ZERO)
-            .as_micros() as u64;
+        let pos = self.status.lock().await.elapsed.unwrap_or(Duration::ZERO).as_micros() as u64;
         return pos;
     }
 

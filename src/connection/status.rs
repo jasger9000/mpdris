@@ -123,11 +123,7 @@ pub enum StateChanged {
 /// Returns a boolean if the query was successful, or the Error variant
 /// if there was an error with the communication with MPD.
 /// Boolean is true when MPD was previously playing and still is, and the current song hasn't changed
-pub async fn update_status(
-    conn: &mut MpdConnection,
-    status: &mut Status,
-    sender: &Sender<StateChanged>,
-) -> MPDResult<bool> {
+pub async fn update_status(conn: &mut MpdConnection, status: &mut Status, sender: &Sender<StateChanged>) -> MPDResult<bool> {
     let res = conn.request_data("status").await?;
 
     let old_status = status.clone();
@@ -171,10 +167,7 @@ pub async fn update_status(
             }
             "songid" => {
                 let id = v.parse().unwrap_or(u32::MAX);
-                let old_id = old_status
-                    .current_song
-                    .as_ref()
-                    .map_or_else(|| u32::MIN, |s| s.id);
+                let old_id = old_status.current_song.as_ref().map_or_else(|| u32::MIN, |s| s.id);
 
                 if id != old_id {
                     status.current_song = Some(conn.request_data("currentsong").await?.into());
@@ -194,10 +187,7 @@ pub async fn update_status(
         status.repeat = Repeat::Single;
     }
 
-    if old_status.state != PlayState::Playing
-        && status.state != PlayState::Playing
-        && old_status.elapsed != status.elapsed
-    {
+    if old_status.state != PlayState::Playing && status.state != PlayState::Playing && old_status.elapsed != status.elapsed {
         #[rustfmt::skip]
         sender.send(StateChanged::Position(status.elapsed.unwrap().as_micros() as u64)).await.unwrap();
     } else if old_status.state != status.state {
