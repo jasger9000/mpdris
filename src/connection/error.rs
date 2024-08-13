@@ -94,7 +94,7 @@ pub enum ErrorKind {
 
 impl ErrorKind {
     /// Tries to convert an error code returned from an MPD ACK response into its corresponding ErrorKind
-    fn from_code(value: usize) -> Option<Self> {
+    fn from_code(value: u8) -> Option<Self> {
         use ErrorKind::*;
 
         match value {
@@ -131,9 +131,7 @@ impl From<io::Error> for Error {
     fn from(value: io::Error) -> Self {
         Self {
             kind: ErrorKind::IO,
-            stored: Box::new(SourceError {
-                source: Box::new(value),
-            }),
+            stored: Box::new(SourceError { source: Box::new(value) }),
         }
     }
 }
@@ -142,9 +140,7 @@ impl From<Utf8Error> for Error {
     fn from(value: Utf8Error) -> Self {
         Self {
             kind: ErrorKind::UTF8,
-            stored: Box::new(SourceError {
-                source: Box::new(value),
-            }),
+            stored: Box::new(SourceError { source: Box::new(value) }),
         }
     }
 }
@@ -153,9 +149,7 @@ impl From<ParseMPDError> for Error {
     fn from(value: ParseMPDError) -> Self {
         Self {
             kind: ErrorKind::Other,
-            stored: Box::new(SourceError {
-                source: Box::new(value),
-            }),
+            stored: Box::new(SourceError { source: Box::new(value) }),
         }
     }
 }
@@ -192,13 +186,12 @@ impl Error {
         }
 
         let mut error_kind: Option<ErrorKind> = None;
-        let mut list_number: Option<usize> = None;
+        let mut list_number: Option<u8> = None;
         let mut failed_command: Option<String> = None;
 
         let mut state = FindACK;
 
-        let mut temp = String::new();
-
+        let mut begin = 0;
         // ACK [error@command_listNum] {current_command} message_text
 
         for (i, chr) in output.chars().enumerate() {
@@ -209,13 +202,13 @@ impl Error {
                         if chr != ack_chr {
                             return Err(ParseMPDError::expected(ack_chr, i));
                         }
-                    }
-                    if i == ack.chars().count() - 1 {
+                    } else {
                         state = FindLeftBracket;
                     }
                 }
                 FindLeftBracket => {
                     if chr == '[' {
+                        begin = i + 1;
                         state = GetErrorType;
                     } else if chr != ' ' {
                         return Err(ParseMPDError::expected('[', i));
@@ -223,43 +216,44 @@ impl Error {
                 }
                 GetErrorType => {
                     if chr == '@' {
-                        error_kind = ErrorKind::from_code(match temp.parse::<usize>() {
-                            Ok(i) => i,
-                            Err(_) => {
-                                return Err(ParseMPDError::number(i));
-                            }
-                        });
+                        match output[begin..i].parse() {
+                            Ok(err_code) => error_kind = ErrorKind::from_code(err_code),
+                            Err(err) => {
+                                use std::num::IntErrorKind::*;
 
-                        if error_kind.is_none() {
-                            return Err(ParseMPDError::new(InvalidCode, i - 1));
+                                match err.kind() {
+                                    Empty | InvalidDigit => ParseMPDError::number(i),
+                                    PosOverflow | NegOverflow => ParseMPDError::new(InvalidCode, begin),
+                                    &_ => ParseMPDError::new(UnexpectedSymbol, i),
+                                };
+                            }
                         }
 
-                        temp.clear();
+                        if error_kind.is_none() {
+                            return Err(ParseMPDError::new(InvalidCode, begin));
+                        }
+
+                        begin = i + 1;
                         state = GetListNum;
                     } else if !chr.is_ascii_digit() {
                         return Err(ParseMPDError::number(i));
-                    } else {
-                        temp.push(chr);
                     }
                 }
                 GetListNum => {
                     if chr == ']' {
-                        list_number = match temp.parse() {
+                        list_number = match output[begin..i].parse() {
                             Ok(i) => Some(i),
-                            Err(_) => {
-                                return Err(ParseMPDError::number(i));
-                            }
+                            Err(_) => return Err(ParseMPDError::number(i)),
                         };
-                        temp.clear();
+
                         state = FindLeftBrace;
                     } else if !chr.is_ascii_digit() {
                         return Err(ParseMPDError::number(i));
-                    } else {
-                        temp.push(chr);
                     }
                 }
                 FindLeftBrace => {
                     if chr == '{' {
+                        begin = i + 1;
                         state = GetFailedCommand;
                     } else if chr != ' ' {
                         return Err(ParseMPDError::expected('{', i));
@@ -267,40 +261,28 @@ impl Error {
                 }
                 GetFailedCommand => {
                     if chr == '}' {
-                        failed_command = Some(temp.clone());
-                        temp.clear();
-                        state = GetErrorMessage;
-                    } else {
-                        temp.push(chr);
+                        failed_command = Some(output[begin..i].to_string());
+
+                        begin = i + 1;
+                        break;
                     }
-                }
-                GetErrorMessage => {
-                    temp.push(chr);
                 }
             };
         }
 
-        temp = temp.trim().to_string();
+        let message_text = output[begin..].trim().to_string();
 
-        if error_kind.is_none()
-            || list_number.is_none()
-            || failed_command.is_none()
-            || temp.is_empty()
-        {
-            return Err(ParseMPDError::new(
-                UnexpectedSymbol,
-                output.chars().count() - 1,
-            ));
+        if error_kind.is_none() || list_number.is_none() || failed_command.is_none() || message_text.is_empty() {
+            return Err(ParseMPDError::new(UnexpectedSymbol, output.chars().count() - 1));
         }
 
         Ok(Self {
             kind: error_kind.unwrap(),
-            stored: ParsedError {
+            stored: Box::new(ParsedError {
                 current_command: failed_command.unwrap(),
                 list_num: list_number.unwrap(),
-                message_text: temp,
-            }
-            .into(),
+                message_text,
+            }),
         })
     }
 }
@@ -387,7 +369,6 @@ enum ParseState {
     GetListNum,
     FindLeftBrace,
     GetFailedCommand,
-    GetErrorMessage,
 }
 
 /// Internal type for holding a custom message when a new [Error] is constructed using
@@ -415,7 +396,7 @@ struct SourceError {
 #[derive(Debug)]
 struct ParsedError {
     current_command: String,
-    list_num: usize,
+    list_num: u8,
     message_text: String,
 }
 
