@@ -7,15 +7,39 @@ fn test_valid_mpd_error() {
     let output = String::from("ACK [5@0] {play} No such song");
     let expected: ParseResult = Ok(Error {
         kind: ErrorKind::from_code(5).unwrap(),
-        stored: ParsedError {
+        stored: Box::new(ParsedError {
             list_num: 0,
             current_command: String::from("play"),
             message_text: String::from("No such song"),
-        }
-        .into(),
+        }),
     });
 
     let result = Error::try_from_mpd(output);
+    assert_eq!(format!("{result:?}"), format!("{expected:?}"));
+}
+
+#[test]
+fn test_large_error_code() {
+    let output = String::from("ACK [50@0] {load} No such playlist");
+    let result = Error::try_from_mpd(output);
+    let expected: ParseResult = Ok(Error {
+        kind: ErrorKind::from_code(50).unwrap(),
+        stored: Box::new(ParsedError {
+            list_num: 0,
+            current_command: String::from("load"),
+            message_text: String::from("No such playlist"),
+        }),
+    });
+
+    assert_eq!(format!("{result:?}"), format!("{expected:?}"));
+}
+
+#[test]
+fn test_overflowing_error_code() {
+    let output = String::from("ACK [340282366920938463463374607431768211456@0] {load} No such playlist");
+    let result = Error::try_from_mpd(output.clone());
+    let expected: ParseResult = Err(ParseMPDError::new(ParseMPDErrorKind::InvalidCode, 5));
+
     assert_eq!(format!("{result:?}"), format!("{expected:?}"));
 }
 
@@ -50,7 +74,7 @@ fn test_missing_fields() {
 fn test_invalid_error_code() {
     let output = String::from("ACK [10@0] {play} No such song");
     let result = Error::try_from_mpd(output);
-    let expected: ParseResult = Err(ParseMPDError::new(ParseMPDErrorKind::InvalidCode, 6));
+    let expected: ParseResult = Err(ParseMPDError::new(ParseMPDErrorKind::InvalidCode, 5));
 
     assert_eq!(format!("{result:?}"), format!("{expected:?}"));
 }
