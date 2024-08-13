@@ -164,6 +164,13 @@ impl MpdClient {
         c.reconnect().await
     }
 
+    /// Play the song with the given id, returns error if the id is invalid
+    pub async fn play_song(&self, id: u32) -> Result<()> {
+        let _ = self.request_data(&format!("seekid {id} 0")).await?;
+
+        Ok(())
+    }
+
     /// Start playback from current song position
     pub async fn play(&self) -> Result<()> {
         let _ = self.request_data("play").await?;

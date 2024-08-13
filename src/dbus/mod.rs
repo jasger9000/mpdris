@@ -1,6 +1,7 @@
 use async_std::channel::Receiver;
 use async_std::task::{spawn, JoinHandle};
 use std::sync::Arc;
+use zbus::zvariant::ObjectPath;
 use zbus::Connection;
 use zbus::{connection::Builder, InterfaceRef};
 
@@ -14,6 +15,7 @@ mod player;
 
 const NAME: &str = "org.mpris.MediaPlayer2.mpd";
 const PATH: &str = "/org/mpris/MediaPlayer2";
+const TRACKID_PATH_BASE: &str = "/org/musicpd/mpris/";
 
 pub async fn serve(
     connection: Arc<MpdClient>,
@@ -40,6 +42,17 @@ pub async fn serve(
     });
 
     Ok((connection, task))
+}
+
+fn id_to_path<'a>(id: u32) -> ObjectPath<'a> {
+    ObjectPath::try_from(format!("{TRACKID_PATH_BASE}{id}")).expect("should always create a valid path")
+}
+
+fn path_to_id(path: &ObjectPath<'_>) -> Option<u32> {
+    let Some(stripped) = path.strip_prefix(TRACKID_PATH_BASE) else {
+        return None;
+    };
+    stripped.parse().ok()
 }
 
 async fn send_signals(connection: &Connection, recv: &Receiver<StateChanged>) -> zbus::Result<()> {

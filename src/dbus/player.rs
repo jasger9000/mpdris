@@ -11,6 +11,8 @@ use zbus::{
 
 use crate::connection::{MpdClient, PlayState, Repeat, Status};
 
+use super::{id_to_path, path_to_id};
+
 pub struct PlayerInterface {
     mpd: Arc<MpdClient>,
     status: Arc<Mutex<Status>>,
@@ -25,22 +27,25 @@ impl PlayerInterface {
 
 #[interface(name = "org.mpris.MediaPlayer2.Player")]
 impl PlayerInterface {
-    async fn next(&mut self) {
+    async fn next(&mut self) -> fdo::Result<()> {
         let s = self.status.lock().await;
 
         if let Some(next_id) = s.next_song {
-            match self.mpd.request_data(format!("seekid {next_id} 0").as_str()).await {
-                Ok(_) => {}
-                Err(err) => eprintln!("Failed to switch to next song: {err}"),
-            }
+            self.mpd.play_song(next_id).await.map_err(|err| {
+                eprintln!("Failed to switch to next song: {err}");
+                err.into()
+            })
         } else if s.repeat == Repeat::Off {
-            self.mpd.pause().await.unwrap_or_else(|err| {
+            self.mpd.pause().await.map_err(|err| {
                 eprintln!("Failed to pause playback because of empty playlist after next: {err}");
-            });
+                err.into()
+            })
+        } else {
+            Ok(())
         }
     }
 
-    async fn previous(&mut self) {
+    async fn previous(&mut self) -> fdo::Result<()> {
         let s = self.status.lock().await;
 
         if s.playlist_length >= 1 {
@@ -51,40 +56,54 @@ impl PlayerInterface {
             };
 
             match self.mpd.request_data(cmd).await {
-                Ok(_) => {}
-                Err(err) => eprintln!("Failed to switch to previous song: {err}"),
+                Ok(_) => Ok(()),
+                Err(err) => {
+                    eprintln!("Failed to switch to previous song: {err}");
+                    Err(err.into())
+                }
             }
         } else if s.playlist_length <= 1 && s.repeat == Repeat::Off {
-            self.mpd.pause().await.unwrap_or_else(|err| {
+            self.mpd.stop().await.map_err(|err| {
                 eprintln!("Failed to pause playback because of empty playlist after previous: {err}");
-            });
+                err.into()
+            })
+        } else {
+            Ok(())
         }
     }
 
-    async fn pause(&mut self) {
-        self.mpd.pause().await.unwrap_or_else(|err| {
+    async fn pause(&mut self) -> fdo::Result<()> {
+        self.mpd.pause().await.map_err(|err| {
             eprintln!("Failed to pause playback: {err}");
-        });
+            err.into()
+        })
     }
 
-    async fn play_pause(&mut self) {
-        self.mpd.toggle_play().await.unwrap_or_else(|err| {
+    async fn play_pause(&mut self) -> fdo::Result<()> {
+        if !self.can_pause().await {
+            return Err(fdo::Error::Failed(String::from(
+                "Attempted to toggle playback while CanPause is false",
+            )));
+        }
+
+        self.mpd.toggle_play().await.map_err(|err| {
             eprintln!("Failed to toggle playback: {err}");
-        });
+            err.into()
+        })
     }
 
-    async fn stop(&mut self) {
-        self.mpd
-            .stop()
-            .await
-            .unwrap_or_else(|err| eprintln!("Failed to stop playback: {err}"));
+    async fn stop(&mut self) -> fdo::Result<()> {
+        self.mpd.stop().await.map_err(|err| {
+            eprintln!("Failed to stop playback: {err}");
+            err.into()
+        })
     }
 
-    async fn play(&mut self) {
-        self.mpd
-            .play()
-            .await
-            .unwrap_or_else(|err| eprintln!("Failed to start playback: {err}"));
+    async fn play(&mut self) -> fdo::Result<()> {
+        self.mpd.play().await.map_err(|err| {
+            eprintln!("Failed to start playback: {err}");
+            err.into()
+        })
     }
 
     async fn seek(&mut self, ms: i64, #[zbus(signal_context)] ctxt: SignalContext<'_>) -> fdo::Result<()> {
@@ -94,13 +113,17 @@ impl PlayerInterface {
 
         if s.elapsed.unwrap_or(Duration::ZERO) + ms > s.duration.unwrap_or(Duration::MAX) {
             drop(s);
-            self.next().await;
+            self.next().await?;
             return Ok(());
         }
 
-        self.mpd.seek_relative(is_positive, ms).await.unwrap_or_else(|err| {
-            eprintln!("Failed to seek: {err}");
-        });
+        match self.mpd.seek_relative(is_positive, ms).await {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("Failed to seek: {err}");
+                return Err(err.into());
+            }
+        }
 
         self.seeked(&ctxt, s.elapsed.unwrap_or(Duration::ZERO).add(ms).as_micros() as u64)
             .await?;
@@ -110,7 +133,7 @@ impl PlayerInterface {
 
     async fn set_position(
         &mut self,
-        track_id: ObjectPath<'_>,
+        track_path: ObjectPath<'_>,
         ms: i64,
         #[zbus(signal_context)] ctxt: SignalContext<'_>,
     ) -> fdo::Result<()> {
@@ -120,15 +143,24 @@ impl PlayerInterface {
 
         let pos = Duration::from_micros(ms.unsigned_abs());
         let s = self.status.lock().await;
-        if pos > s.duration.unwrap_or(Duration::MAX) || s.current_song.is_none()
-        //            || s.current_song.unwrap() != track_id // TODO fix current_song != ObjectPath
+        let Some(track_id) = path_to_id(&track_path) else {
+            return Ok(());
+        };
+
+        if pos > s.duration.unwrap_or(Duration::MAX)
+            || s.current_song.is_none()
+            || s.current_song.as_ref().unwrap().id != track_id
         {
             return Ok(());
         }
 
-        self.mpd.seek(pos).await.unwrap_or_else(|err| {
-            eprintln!("Failed to set position: {err}");
-        });
+        match self.mpd.seek(pos).await {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("Failed to set position: {err}");
+                return Err(err.into());
+            }
+        }
 
         self.seeked(&ctxt, ms.unsigned_abs()).await?;
 
@@ -157,19 +189,22 @@ impl PlayerInterface {
     }
 
     #[zbus(property)]
-    async fn set_loop_status(&mut self, loop_status: String) {
+    async fn set_loop_status(&mut self, loop_status: String) -> fdo::Result<()> {
         let (repeat, single) = match loop_status.as_str() {
             "None" => (0u8, 0u8),
             "Playlist" => (1, 0),
             "Track" => (1, 1),
-            _ => (0, 0),
+            _ => return Err(fdo::Error::InvalidArgs(format!("`{loop_status}` is not a valid loop status"))),
         };
 
         let cmd = format!("command_list_begin\nrepeat {repeat}\nsingle {single}\ncommand_list_end");
-        match self.mpd.request_data(cmd.as_str()).await {
+        match self.mpd.request_data(&cmd).await {
             Ok(_) => {}
-            Err(err) => eprintln!("Could not set loop status: {err}"),
-        }
+            Err(err) => {
+                eprintln!("Failed to set loop status: {err}");
+                return Err(err.into());
+            }
+        };
 
         self.status.lock().await.repeat = if single == 1 {
             Repeat::Single
@@ -178,6 +213,8 @@ impl PlayerInterface {
         } else {
             Repeat::Off
         };
+
+        Ok(())
     }
 
     #[zbus(property)]
@@ -186,24 +223,28 @@ impl PlayerInterface {
     }
 
     #[zbus(property)]
-    async fn set_shuffle(&self, shuffle: bool) {
+    async fn set_shuffle(&self, shuffle: bool) -> zbus::Result<()> {
         let cmd = if shuffle { "random 1" } else { "random 0" };
 
         match self.mpd.request_data(cmd).await {
             Ok(_) => {}
-            Err(err) => eprintln!("Could not set shuffleing: {err}"),
+            Err(err) => {
+                eprintln!("Could not set shuffleing: {err}");
+                return Err(Into::<fdo::Error>::into(err).into());
+            }
         }
 
         self.status.lock().await.shuffle = shuffle;
+        Ok(())
     }
 
     #[zbus(property)]
     async fn metadata(&self) -> HashMap<&str, Value> {
-        let mut map = HashMap::new();
         let s = self.status.lock().await;
+        let mut map = HashMap::new();
 
         if let Some(song) = &s.current_song {
-            //            map.insert("mpris:trackid", );
+            map.insert("mpris:trackid", id_to_path(song.id).into());
             if let Some(duration) = s.duration {
                 map.insert("mpris:length", (duration.as_micros() as u64).into());
             }
@@ -238,23 +279,27 @@ impl PlayerInterface {
     }
 
     #[zbus(property)]
-    async fn set_volume(&self, volume: u8) {
+    async fn set_volume(&self, volume: i16) -> zbus::Result<()> {
         if volume > 100 {
-            return;
+            return Err(fdo::Error::InvalidArgs(String::from("Volume cannot be greater than 100")).into());
         }
 
-        match self.mpd.request_data(format!("setvol {volume}").as_str()).await {
+        match self.mpd.request_data(&format!("setvol {volume}")).await {
             Ok(_) => {}
-            Err(err) => eprintln!("Could not set volume: {err}"),
+            Err(err) => {
+                eprintln!("Could not set volume: {err}");
+                return Err(Into::<fdo::Error>::into(err).into());
+            }
         }
 
-        self.status.lock().await.volume = volume;
+        self.status.lock().await.volume = volume as u8;
+        Ok(())
     }
 
     #[zbus(property)]
-    async fn position(&self) -> u64 {
-        let pos = self.status.lock().await.elapsed.unwrap_or(Duration::ZERO).as_micros() as u64;
-        return pos;
+    async fn position(&self) -> fdo::Result<u64> {
+        self.mpd.update_status().await?;
+        return Ok(self.status.lock().await.elapsed.unwrap_or(Duration::ZERO).as_micros() as u64);
     }
 
     #[zbus(property)]

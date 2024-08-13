@@ -154,6 +154,33 @@ impl From<ParseMPDError> for Error {
     }
 }
 
+impl From<Error> for zbus::fdo::Error {
+    fn from(value: Error) -> Self {
+        use zbus::fdo::Error::*;
+        use ErrorKind::*;
+
+        match value.kind {
+            NotAList => Failed(value.to_string()),
+            WrongArgument => InvalidArgs(value.to_string()),
+            IncorrectPassword => AuthFailed(value.to_string()),
+            PermissionDenied => AccessDenied(value.to_string()),
+            UnknownCommand => Failed(value.to_string()),
+            DoesNotExist => FileNotFound(value.to_string()),
+            PlaylistTooLarge => LimitsExceeded(value.to_string()),
+            System => NotSupported(value.to_string()),
+            PlaylistLoad => Failed(value.to_string()),
+            CannotUpdate => LimitsExceeded(value.to_string()),
+            PlayerSync => Failed(value.to_string()),
+            AlreadyExists => FileExists(value.to_string()),
+            IO => IOError(value.to_string()),
+            UTF8 => Failed(value.to_string()),
+            InvalidConnection => IOError(value.to_string()),
+            KeyValueError => Failed(value.to_string()),
+            Other => Failed(value.to_string()),
+        }
+    }
+}
+
 impl Error {
     /// Creates a new error with a static error string
     /// If you want to create an I/O or UTF-8 error type, please use the into() method
