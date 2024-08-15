@@ -30,6 +30,8 @@ const IDLE_REQUEST: &str = "idle stored_playlist playlist player mixer options";
 
 pub struct MpdClient {
     connection: Arc<Mutex<MpdConnection>>,
+    idle_connection: Arc<Mutex<MpdConnection>>,
+    drop_idle_lock: Sender<()>,
     /// Cached status
     status: Arc<Mutex<Status>>,
     sender: Sender<StateChanged>,
@@ -183,9 +185,11 @@ impl MpdClient {
     }
 
     pub async fn reconnect(&self) -> Result<()> {
-        let mut c = self.connection.lock().await;
+        self.drop_idle_lock.send(()).await.expect("Channel must always be open");
+        let (mut c, mut ic) = join(self.connection.lock(), self.idle_connection.lock()).await;
 
-        c.reconnect().await
+        c.reconnect().await?;
+        ic.reconnect().await
     }
 
     /// Play the song with the given id, returns error if the id is invalid
@@ -267,6 +271,9 @@ impl MpdClient {
         let (sender, recv) = bounded(1);
         let status = Arc::new(Mutex::new(Status::new()));
         let connection = Arc::new(Mutex::new(MpdConnection::new(config.clone()).await?));
+        println!("Connecting second stream to ask for updates");
+        let idle_connection = Arc::new(Mutex::new(MpdConnection::new(config.clone()).await?));
+        let (drop_idle_lock, drop_lock) = bounded(1);
 
         let idle_conn = Arc::clone(&idle_connection);
         let idle_sender = Sender::clone(&sender);
@@ -275,13 +282,28 @@ impl MpdClient {
 
         let idle_task = spawn(async move {
             loop {
-                match idle_conn.request_data(IDLE_REQUEST).await {
-                    Ok(res) => {
+                sleep(Duration::from_nanos(1)).await; // necessary to acquire lock in reconnect fn
+                let mut conn = idle_conn.lock().await;
+                let result = {
+                    let request = conn.request_data(IDLE_REQUEST);
+                    let drop_lock = async {
+                        drop_lock.recv().await.expect("Channel must always be open");
+                    };
+
+                    pin_mut!(request, drop_lock);
+                    match select(drop_lock, request).await {
+                        Either::Left((_, _)) => continue,
+                        Either::Right((res, _)) => res,
+                    }
+                };
+
+                match result {
+                    Ok(response) => {
                         let mut s = idle_status.lock().await;
 
-                        match status::update_status(&mut idle_conn, &mut s, &idle_sender).await {
+                        match status::update_status(&mut conn, &mut s, &idle_sender).await {
                             Ok(could_be_seeking) => {
-                                if res[0].1 == "player" && could_be_seeking {
+                                if response[0].1 == "player" && could_be_seeking {
                                     let elapsed = s.elapsed.unwrap().as_micros() as u64;
                                     drop(s);
 
@@ -317,6 +339,8 @@ impl MpdClient {
 
         let client = Self {
             connection,
+            idle_connection,
+            drop_idle_lock,
             sender,
             ping_task,
             idle_task,
