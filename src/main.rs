@@ -4,10 +4,8 @@ mod connection;
 mod dbus;
 
 use async_std::sync::Mutex;
-use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
-use std::cmp::Ordering;
+use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
 use std::env;
-use std::ffi::CString;
 use std::io;
 use std::path::PathBuf;
 use std::process::exit;
@@ -37,15 +35,7 @@ async fn main() {
 
     // subscribe to signals
     let mut signals = {
-        // decide whether, we should fork
-        let is_daemon = !args.no_spawn_daemon || args.service;
-        let should_fork = !args.no_spawn_daemon && !args.service;
-
-        if should_fork {
-            daemonize();
-        }
-
-        get_signals(is_daemon).unwrap_or_else(|err| {
+        get_signals(args.service).unwrap_or_else(|err| {
             eprintln!("Could not subscribe to signals: {err}");
             exit(EXIT_FAILURE);
         })
@@ -109,35 +99,6 @@ async fn main() {
                 eprintln!("Received signal, quitting...");
                 handle.close();
             }
-        }
-    }
-}
-
-/// Forks the currently running process, kills the parent,
-/// closes all file descriptors and sets the working directory to /
-fn daemonize() {
-    let pid = unsafe { libc::fork() };
-    match pid.cmp(&0) {
-        Ordering::Less => {
-            panic!("Could not fork the process")
-        }
-        Ordering::Equal => {} // child process
-        Ordering::Greater => exit(EXIT_SUCCESS),
-    }
-
-    let sid = unsafe { libc::setsid() };
-    if sid < 0 {
-        panic!("Could not create a new session for the daemon");
-    }
-
-    let root_dir = CString::new("/").expect("Root path descriptor creation failed");
-    if unsafe { libc::chdir(root_dir.as_ptr()) } < 0 {
-        panic!("Could not change to root directory");
-    }
-
-    unsafe {
-        if libc::close(STDIN_FILENO) < 0 || libc::close(STDOUT_FILENO) < 0 || libc::close(STDERR_FILENO) < 0 {
-            panic!("Could not file descriptors stdin, stdout, stderr");
         }
     }
 }

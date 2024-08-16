@@ -16,9 +16,6 @@ pub struct Args {
     /// amount of times mpDris tries to reconnect to mpd before exiting. Set to -1 to retry inifinite times
     #[argh(option, short = 'r')]
     pub retries: Option<isize>,
-    /// when set, does not try to fork into a daemon
-    #[argh(switch)]
-    pub no_spawn_daemon: bool,
     /// when set, acts as a daemon without forking the process
     #[argh(switch)]
     pub service: bool,
