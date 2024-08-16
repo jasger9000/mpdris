@@ -137,7 +137,7 @@ impl From<Vec<(String, String)>> for Song {
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum StateChanged {
-    Position(u64),
+    Position(i64),
     Song(bool, bool),
     Playlist,
     PlayState,
@@ -216,21 +216,27 @@ pub async fn update_status(conn: &mut MpdConnection, status: &mut Status, sender
 
     if old_status.state != PlayState::Playing && status.state != PlayState::Playing && old_status.elapsed != status.elapsed {
         #[rustfmt::skip]
-        sender.send(StateChanged::Position(status.elapsed.unwrap().as_micros() as u64)).await.unwrap();
-    } else if old_status.state != status.state {
+        sender.send(StateChanged::Position(status.elapsed.unwrap().as_micros() as i64)).await.unwrap();
+    }
+    if old_status.state != status.state {
         sender.send(StateChanged::PlayState).await.unwrap();
-    } else if old_status.volume != status.volume {
+    }
+    if old_status.volume != status.volume {
         sender.send(StateChanged::Volume).await.unwrap();
-    } else if old_status.repeat != status.repeat {
+    }
+    if old_status.repeat != status.repeat {
         sender.send(StateChanged::Repeat).await.unwrap();
-    } else if old_status.shuffle != status.shuffle {
+    }
+    if old_status.shuffle != status.shuffle {
         sender.send(StateChanged::Shuffle).await.unwrap();
-    } else if old_status.current_song != status.current_song {
+    }
+    if old_status.current_song != status.current_song {
         let prev = old_status.playlist_length != status.playlist_length
             && ((status.playlist_length < 1) != (old_status.playlist_length < 1));
         let next = old_status.next_song != status.next_song;
         sender.send(StateChanged::Song(prev, next)).await.unwrap();
-    } else if old_status.next_song.is_some() != status.next_song.is_some()
+    }
+    if old_status.next_song.is_some() != status.next_song.is_some()
         || old_status.playlist_length != status.playlist_length
     {
         sender.send(StateChanged::Playlist).await.unwrap();

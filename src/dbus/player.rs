@@ -128,7 +128,7 @@ impl PlayerInterface {
             }
         }
 
-        self.seeked(&ctxt, s.elapsed.unwrap_or(Duration::ZERO).add(ms).as_micros() as u64)
+        self.seeked(&ctxt, s.elapsed.unwrap_or(Duration::ZERO).add(ms).as_micros() as i64)
             .await?;
 
         Ok(())
@@ -165,13 +165,13 @@ impl PlayerInterface {
             }
         }
 
-        self.seeked(&ctxt, ms.unsigned_abs()).await?;
+        self.seeked(&ctxt, ms).await?;
 
         Ok(())
     }
 
     #[zbus(signal)]
-    pub async fn seeked(&self, ctxt: &SignalContext<'_>, ms: u64) -> zbus::Result<()>;
+    pub async fn seeked(&self, ctxt: &SignalContext<'_>, ms: i64) -> zbus::Result<()>;
 
     #[zbus(property)]
     async fn playback_status(&self) -> &str {
@@ -267,7 +267,9 @@ impl PlayerInterface {
             if let Some(album_artist) = &song.album_artist {
                 map.insert("xesam:albumArtist", album_artist.clone().into());
             }
-            // TODO date
+            if let Some(date) = &song.date {
+                map.insert("xesam:contentCreated", format!("{date}-01-01T00:00+0000").into());
+            }
             if let Some(track) = song.track {
                 map.insert("xesam:trackNumber", track.into());
             }
@@ -277,17 +279,17 @@ impl PlayerInterface {
     }
 
     #[zbus(property)]
-    async fn volume(&self) -> u8 {
-        self.status.lock().await.volume
+    async fn volume(&self) -> f64 {
+        self.status.lock().await.volume as f64
     }
 
     #[zbus(property)]
-    async fn set_volume(&self, volume: i16) -> zbus::Result<()> {
-        if volume > 100 {
+    async fn set_volume(&self, volume: f64) -> zbus::Result<()> {
+        if volume > 100.0 {
             return Err(fdo::Error::InvalidArgs(String::from("Volume cannot be greater than 100")).into());
         }
 
-        match self.mpd.request_data(&format!("setvol {volume}")).await {
+        match self.mpd.request_data(&format!("setvol {}", volume as u8)).await {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("Could not set volume: {err}");
@@ -300,18 +302,32 @@ impl PlayerInterface {
     }
 
     #[zbus(property)]
-    async fn position(&self) -> fdo::Result<u64> {
+    async fn position(&self) -> fdo::Result<i64> {
         self.mpd.update_status().await?;
-        return Ok(self.status.lock().await.elapsed.unwrap_or(Duration::ZERO).as_micros() as u64);
+        return Ok(self.status.lock().await.elapsed.unwrap_or(Duration::ZERO).as_micros() as i64);
     }
 
     #[zbus(property)]
-    async fn minimum_rate(&self) -> f32 {
+    async fn rate(&self) -> f64 {
         1.0
     }
 
     #[zbus(property)]
-    async fn maximum_rate(&self) -> f32 {
+    async fn set_rate(&mut self, rate: f64) -> fdo::Result<()> {
+        if rate == 0.0 {
+            self.pause().await?;
+        }
+
+        Ok(())
+    }
+
+    #[zbus(property)]
+    async fn minimum_rate(&self) -> f64 {
+        1.0
+    }
+
+    #[zbus(property)]
+    async fn maximum_rate(&self) -> f64 {
         1.0
     }
 

@@ -4,7 +4,7 @@ mod status;
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
-use async_std::channel::{bounded, Receiver, Sender};
+use async_std::channel::{bounded, unbounded, Receiver, Sender};
 use async_std::io::{self, BufReader, BufWriter};
 use async_std::net::TcpStream;
 use async_std::sync::{Arc, Mutex};
@@ -268,7 +268,7 @@ impl MpdClient {
         println!("Connecting to server on ip-address: {} using port: {}", c.addr, c.port);
 
         drop(c);
-        let (sender, recv) = bounded(1);
+        let (sender, recv) = unbounded();
         let status = Arc::new(Mutex::new(Status::new()));
         let connection = Arc::new(Mutex::new(MpdConnection::new(config.clone()).await?));
         println!("Connecting second stream to ask for updates");
@@ -304,7 +304,7 @@ impl MpdClient {
                         match status::update_status(&mut conn, &mut s, &idle_sender).await {
                             Ok(could_be_seeking) => {
                                 if response[0].1 == "player" && could_be_seeking {
-                                    let elapsed = s.elapsed.unwrap().as_micros() as u64;
+                                    let elapsed = s.elapsed.unwrap().as_micros() as i64;
                                     drop(s);
 
                                     idle_sender.send(StateChanged::Position(elapsed)).await.unwrap();
