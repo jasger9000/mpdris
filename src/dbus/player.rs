@@ -249,6 +249,9 @@ impl PlayerInterface {
 
         if let Some(song) = &s.current_song {
             map.insert("mpris:trackid", id_to_path(song.id).into());
+            map.insert("xesam:artist", song.artists.clone().into());
+            map.insert("xesam:url", format!("file://{}/{}", music_dir, song.uri).into());
+
             if let Some(duration) = s.duration {
                 map.insert("mpris:length", (duration.as_micros() as u64).into());
             }
@@ -264,14 +267,10 @@ impl PlayerInterface {
             if let Some(album_artist) = &song.album_artist {
                 map.insert("xesam:albumArtist", album_artist.clone().into());
             }
-            if let Some(artist) = &song.artist {
-                map.insert("xesam:artist", artist.clone().into());
-            }
             // TODO date
             if let Some(track) = song.track {
                 map.insert("xesam:trackNumber", track.into());
             }
-            map.insert("xesam:url", format!("file://{}/{}", music_dir, song.uri).into());
         }
 
         return map;

@@ -60,7 +60,7 @@ pub enum Repeat {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Song {
     pub uri: String,
-    pub artist: Option<String>,
+    pub artists: Vec<String>,
     pub album_artist: Option<String>,
     pub title: Option<String>,
     pub album: Option<String>,
@@ -74,7 +74,7 @@ impl Song {
     pub fn new() -> Self {
         Self {
             uri: String::new(),
-            artist: None,
+            artists: Vec::new(),
             album_artist: None,
             title: None,
             album: None,
@@ -120,8 +120,8 @@ impl From<Vec<(String, String)>> for Song {
         for (k, v) in value {
             match k.as_str() {
                 "file" => song.uri = v,
-                "Artist" => song.artist = Some(v),
-                "AlbumArtist" => song.artist = Some(v),
+                "Artist" => song.artists.push(v),
+                "AlbumArtist" => song.album_artist = Some(v),
                 "Title" => song.title = Some(v),
                 "Album" => song.album = Some(v),
                 "Track" => song.track = v.parse().ok(),
