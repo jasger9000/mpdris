@@ -1,5 +1,5 @@
 use argh::FromArgs;
-use std::net::IpAddr;
+use std::{net::IpAddr, path::PathBuf};
 
 /// A client implementing the dbus MPRIS standard for mpd
 #[derive(FromArgs)]
@@ -16,6 +16,9 @@ pub struct Args {
     /// amount of times mpDris tries to reconnect to mpd before exiting. Set to -1 to retry inifinite times
     #[argh(option, short = 'r')]
     pub retries: Option<isize>,
+    /// path to config file to use instead of the default
+    #[argh(option)]
+    pub config: Option<PathBuf>,
     /// when set, acts as a daemon without forking the process
     #[argh(switch)]
     pub service: bool,

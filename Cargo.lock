@@ -715,6 +715,7 @@ dependencies = [
  "const_format",
  "futures-util",
  "libc",
+ "once_cell",
  "serde",
  "signal-hook",
  "toml",

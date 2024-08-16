@@ -5,16 +5,11 @@ mod dbus;
 
 use async_std::sync::Mutex;
 use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
-use std::env;
-use std::io;
-use std::path::PathBuf;
-use std::process::exit;
+use once_cell::sync::Lazy;
 use std::sync::{atomic::AtomicBool, Arc};
+use std::{env, io, path::PathBuf, process::exit};
 
-use signal_hook::consts::TERM_SIGNALS;
-use signal_hook::flag;
-use signal_hook::iterator::Signals;
-use signal_hook::low_level::emulate_default_handler;
+use signal_hook::{consts::TERM_SIGNALS, flag, iterator::Signals, low_level::emulate_default_handler};
 
 use crate::args::Args;
 use crate::config::Config;
@@ -22,12 +17,17 @@ use crate::connection::MpdClient;
 
 #[rustfmt::skip]
 const VERSION_STR: &str = concat!("Running ", env!("CARGO_BIN_NAME"), " v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
+static HOME_DIR: Lazy<String> = Lazy::new(|| env::var("HOME").expect("$HOME must be set"));
 
 #[cfg(target_os = "linux")]
 #[async_std::main]
 async fn main() {
-    let config_path = get_config_path();
     let args: Args = argh::from_env();
+
+    let config_path = match &args.config {
+        Some(c) => c,
+        None => &get_config_path(),
+    };
     if args.version {
         println!("{}", VERSION_STR);
         exit(EXIT_SUCCESS);
@@ -42,13 +42,13 @@ async fn main() {
     };
 
     let config = {
-        let config = Config::load_config(config_path.as_path(), &args).await.unwrap_or_else(|err| {
+        let config = Config::load_config(config_path, &args).await.unwrap_or_else(|err| {
             eprintln!("Error occurred while trying to load the config: {err}");
             exit(EXIT_FAILURE);
         });
 
         if !config_path.is_file() {
-            config.write(&config_path).await.unwrap_or_else(|err| {
+            config.write(config_path).await.unwrap_or_else(|err| {
                 eprintln!("Could not write config file: {err}");
             });
         }
@@ -126,20 +126,9 @@ fn get_signals(is_daemon: bool) -> io::Result<Signals> {
     Ok(Signals::new(sigs)?)
 }
 
-#[cfg(not(debug_assertions))]
+/// Gets the default config path from the enviroment.
+/// Defined as: $XDG_CONFIG_PATH/mpd/mpDris.conf or $HOME/.config/mpd/mpDris.conf
 fn get_config_path() -> PathBuf {
-    let path: PathBuf = match env::var("XDG_CONFIG_HOME") {
-        Ok(p) => p,
-        Err(_) => env::var("HOME").expect("$HOME must always be set"),
-    }
-    .parse()
-    .expect("Could not parse path to config directory");
-
-    path.join(["mpd", "mpDris.conf"].iter().collect::<PathBuf>())
-}
-#[cfg(debug_assertions)]
-fn get_config_path() -> PathBuf {
-    [env::var("PWD").expect("$PWD must always be set").as_str(), "mpDris.conf"]
-        .iter()
-        .collect()
+    let base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{}/.config", *HOME_DIR));
+    [base.as_str(), "mpd", "mpDris.conf"].iter().collect()
 }
