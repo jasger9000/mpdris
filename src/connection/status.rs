@@ -1,4 +1,5 @@
-use async_std::channel::Sender;
+use async_std::{channel::Sender, fs::metadata};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use super::MPDResult;
@@ -59,7 +60,6 @@ pub enum Repeat {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Song {
     pub uri: String,
-    pub cover: Option<String>,
     pub artist: Option<String>,
     pub album_artist: Option<String>,
     pub title: Option<String>,
@@ -74,7 +74,6 @@ impl Song {
     pub fn new() -> Self {
         Self {
             uri: String::new(),
-            cover: None, // TODO cover
             artist: None,
             album_artist: None,
             title: None,
@@ -82,6 +81,34 @@ impl Song {
             track: None,
             date: None,
             id: 0,
+        }
+    }
+
+    pub async fn find_cover_url(&self, base: &String) -> Option<String> {
+        let covers: PathBuf = [base, "covers", &self.uri].iter().collect();
+        let uri: PathBuf = [base, &self.uri].iter().collect();
+
+        async fn check_path(path: &Path) -> Option<String> {
+            let img_exts = ["jpg", "jpeg", "png", "webp", "avif", "jxl", "bmp", "gif", "heif", "heic"];
+
+            for ext in img_exts {
+                let path = path.with_extension(ext);
+                if metadata(&path).await.is_ok() {
+                    let Some(path) = path.to_str() else { return None; };
+                    return Some(format!("file://{path}"));
+                }
+            }
+            return None;
+        }
+
+        if let Some(path) = check_path(&covers).await {
+            Some(path)
+        } else if let Some(path) = check_path(&uri).await {
+            Some(path)
+        } else if let Some(path) = check_path(&uri.with_file_name("cover")).await {
+            Some(path)
+        } else {
+            None
         }
     }
 }

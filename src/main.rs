@@ -61,7 +61,7 @@ async fn main() {
         .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}"));
     let conn = Arc::new(conn);
 
-    let _interface = dbus::serve(conn.clone(), recv)
+    let _interface = dbus::serve(conn.clone(), recv, config.clone())
         .await
         .unwrap_or_else(|err| panic!("Could not serve the dbus interface: {err}"));
 

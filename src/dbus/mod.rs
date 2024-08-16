@@ -1,4 +1,5 @@
 use async_std::channel::Receiver;
+use async_std::sync::Mutex;
 use async_std::task::{spawn, JoinHandle};
 use std::sync::Arc;
 use zbus::zvariant::ObjectPath;
@@ -8,6 +9,7 @@ use zbus::{connection::Builder, InterfaceRef};
 use base::BaseInterface;
 use player::PlayerInterface;
 
+use crate::config::Config;
 use crate::connection::{MpdClient, StateChanged};
 
 mod base;
@@ -20,9 +22,10 @@ const TRACKID_PATH_BASE: &str = "/org/musicpd/mpris/";
 pub async fn serve(
     connection: Arc<MpdClient>,
     recv: Receiver<StateChanged>,
+    config: Arc<Mutex<Config>>,
 ) -> Result<(Connection, JoinHandle<()>), zbus::Error> {
     let base = BaseInterface::new();
-    let player = PlayerInterface::new(connection).await;
+    let player = PlayerInterface::new(connection, config).await;
 
     let connection = Builder::session()?
         .name(NAME)?

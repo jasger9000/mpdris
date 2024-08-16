@@ -1,14 +1,12 @@
 use async_std::sync::Mutex;
-use std::collections::HashMap;
-use std::ops::Add;
-use std::time::Duration;
-use std::{sync::Arc, usize};
+use std::{collections::HashMap, ops::Add, sync::Arc, time::Duration};
 use zbus::{
     fdo, interface,
     zvariant::{ObjectPath, Value},
     SignalContext,
 };
 
+use crate::config::Config;
 use crate::connection::{MpdClient, PlayState, Repeat, Status};
 
 use super::{id_to_path, path_to_id};
@@ -16,12 +14,17 @@ use super::{id_to_path, path_to_id};
 pub struct PlayerInterface {
     mpd: Arc<MpdClient>,
     status: Arc<Mutex<Status>>,
+    config: Arc<Mutex<Config>>,
 }
 
 impl PlayerInterface {
-    pub async fn new(connection: Arc<MpdClient>) -> Self {
+    pub async fn new(connection: Arc<MpdClient>, config: Arc<Mutex<Config>>) -> Self {
         let status = connection.get_status();
-        Self { mpd: connection, status }
+        Self {
+            mpd: connection,
+            status,
+            config,
+        }
     }
 }
 
@@ -241,6 +244,7 @@ impl PlayerInterface {
     #[zbus(property)]
     async fn metadata(&self) -> HashMap<&str, Value> {
         let s = self.status.lock().await;
+        let music_dir  = &self.config.lock().await.music_directory;
         let mut map = HashMap::new();
 
         if let Some(song) = &s.current_song {
@@ -248,8 +252,8 @@ impl PlayerInterface {
             if let Some(duration) = s.duration {
                 map.insert("mpris:length", (duration.as_micros() as u64).into());
             }
-            if let Some(cover) = &song.cover {
-                map.insert("xesam:artUrl", cover.clone().into());
+            if let Some(cover) = &song.find_cover_url(music_dir).await {
+                map.insert("mpris:artUrl", cover.clone().into());
             }
             if let Some(title) = &song.title {
                 map.insert("xesam:title", title.clone().into());
@@ -267,7 +271,7 @@ impl PlayerInterface {
             if let Some(track) = song.track {
                 map.insert("xesam:trackNumber", track.into());
             }
-            map.insert("xesam:url", format!("file://{}", song.uri).into());
+            map.insert("xesam:url", format!("file://{}/{}", music_dir, song.uri).into());
         }
 
         return map;

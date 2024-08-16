@@ -1,11 +1,13 @@
-use crate::args::Args;
 use async_std::{fs, io};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::net::{IpAddr, Ipv4Addr};
-use std::path::Path;
+use std::{env, path::Path};
 
-#[derive(Deserialize, Serialize)]
+use crate::args::Args;
+use crate::HOME_DIR;
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Config {
     #[serde(default = "default_addr")]
     /// The IP address of MPD to connect to
@@ -16,6 +18,9 @@ pub struct Config {
     #[serde(default = "default_retries")]
     /// Amount of time to retry to connect
     pub retries: isize,
+    #[serde(default = "default_music_dir")]
+    /// The root directory MPD uses to play music
+    pub music_directory: String,
 }
 
 impl Default for Config {
@@ -27,6 +32,7 @@ impl Default for Config {
 const DEFAULT_ADDR: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 const DEFAULT_PORT: u16 = 6600;
 const DEFAULT_RETRIES: isize = 3;
+static DEFAULT_MUSIC_DIR: Lazy<String> = Lazy::new(|| format!("{}/Music", *HOME_DIR));
 
 impl Config {
     pub fn new() -> Self {
@@ -34,6 +40,7 @@ impl Config {
             addr: DEFAULT_ADDR,
             port: DEFAULT_PORT,
             retries: DEFAULT_RETRIES,
+            music_directory: DEFAULT_MUSIC_DIR.to_owned(),
         }
     }
 
@@ -154,6 +161,13 @@ impl Config {
     }
 }
 
+fn default_music_dir() -> String {
+    eprintln!(
+        "Missing value `music_directory` in config, using default: {}",
+        *DEFAULT_MUSIC_DIR
+    );
+    DEFAULT_MUSIC_DIR.to_owned()
+}
 fn default_addr() -> IpAddr {
     eprintln!("Missing value `addr` in config, using default: {DEFAULT_ADDR}");
     DEFAULT_ADDR
