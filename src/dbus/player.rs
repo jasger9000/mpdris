@@ -244,31 +244,45 @@ impl PlayerInterface {
     #[zbus(property)]
     async fn metadata(&self) -> HashMap<&str, Value> {
         let s = self.status.lock().await;
-        let music_dir  = &self.config.lock().await.music_directory;
+        let music_dir = &self.config.lock().await.music_directory;
         let mut map = HashMap::new();
 
         if let Some(song) = &s.current_song {
             map.insert("mpris:trackid", id_to_path(song.id).into());
-            map.insert("xesam:artist", song.artists.clone().into());
             map.insert("xesam:url", format!("file://{}/{}", music_dir, song.uri).into());
 
             if let Some(duration) = s.duration {
-                map.insert("mpris:length", (duration.as_micros() as u64).into());
+                map.insert("mpris:length", (duration.as_micros() as i64).into());
             }
             if let Some(cover) = &song.find_cover_url(music_dir).await {
                 map.insert("mpris:artUrl", cover.clone().into());
             }
-            if let Some(title) = &song.title {
-                map.insert("xesam:title", title.clone().into());
-            }
             if let Some(album) = &song.album {
                 map.insert("xesam:album", album.clone().into());
             }
-            if let Some(album_artist) = &song.album_artist {
-                map.insert("xesam:albumArtist", album_artist.clone().into());
+            if let Some(album_artists) = &song.album_artists {
+                map.insert("xesam:albumArtist", album_artists.clone().into());
+            }
+            if let Some(artists) = &song.artists {
+                map.insert("xesam:artist", artists.clone().into());
+            }
+            if let Some(comment) = &song.comment {
+                map.insert("xesam:comment", comment.clone().into());
+            }
+            if let Some(composer) = &song.composer {
+                map.insert("xesam:composer", composer.clone().into());
             }
             if let Some(date) = &song.date {
                 map.insert("xesam:contentCreated", format!("{date}-01-01T00:00+0000").into());
+            }
+            if let Some(disc) = song.disc {
+                map.insert("xesam:discNumber", disc.into());
+            }
+            if let Some(genre) = &song.genre {
+                map.insert("xesam:genre", genre.clone().into());
+            }
+            if let Some(title) = &song.title {
+                map.insert("xesam:title", title.clone().into());
             }
             if let Some(track) = song.track {
                 map.insert("xesam:trackNumber", track.into());

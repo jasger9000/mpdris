@@ -60,12 +60,16 @@ pub enum Repeat {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Song {
     pub uri: String,
-    pub artists: Vec<String>,
-    pub album_artist: Option<String>,
-    pub title: Option<String>,
+    pub artists: Option<Vec<String>>,
     pub album: Option<String>,
+    pub album_artists: Option<Vec<String>>,
+    pub title: Option<String>,
     pub track: Option<u8>,
+    pub genre: Option<Vec<String>>,
     pub date: Option<u32>,
+    pub composer: Option<Vec<String>>,
+    pub comment: Option<Vec<String>>,
+    pub disc: Option<u8>,
     pub id: u32,
 }
 
@@ -74,12 +78,16 @@ impl Song {
     pub fn new() -> Self {
         Self {
             uri: String::new(),
-            artists: Vec::new(),
-            album_artist: None,
-            title: None,
+            artists: None,
             album: None,
+            album_artists: None,
+            title: None,
             track: None,
+            genre: None,
             date: None,
+            composer: None,
+            comment: None,
+            disc: None,
             id: 0,
         }
     }
@@ -94,7 +102,9 @@ impl Song {
             for ext in img_exts {
                 let path = path.with_extension(ext);
                 if metadata(&path).await.is_ok() {
-                    let Some(path) = path.to_str() else { return None; };
+                    let Some(path) = path.to_str() else {
+                        return None;
+                    };
                     return Some(format!("file://{path}"));
                 }
             }
@@ -120,18 +130,31 @@ impl From<Vec<(String, String)>> for Song {
         for (k, v) in value {
             match k.as_str() {
                 "file" => song.uri = v,
-                "Artist" => song.artists.push(v),
-                "AlbumArtist" => song.album_artist = Some(v),
-                "Title" => song.title = Some(v),
+                "Artist" => add_to_vec(&mut song.artists, v),
                 "Album" => song.album = Some(v),
+                "AlbumArtist" => add_to_vec(&mut song.album_artists, v),
+                "Title" => song.title = Some(v),
                 "Track" => song.track = v.parse().ok(),
+                "Genre" => add_to_vec(&mut song.genre, v),
                 "Date" => song.date = v.parse().ok(),
+                "Composer" => add_to_vec(&mut song.composer, v),
+                "Comment" => add_to_vec(&mut song.comment, v),
+                "Disc" => song.disc = v.parse().ok(),
                 "Id" => song.id = v.parse().unwrap_or(0),
                 &_ => {}
             }
         }
 
         return song;
+    }
+}
+
+/// Pushes value to the vec if it is some or creates a new Vec with value
+fn add_to_vec(vec: &mut Option<Vec<String>>, value: String) {
+    if let Some(vec) = vec {
+        vec.push(value);
+    } else {
+        *vec = Some(vec![value]);
     }
 }
 
@@ -236,9 +259,7 @@ pub async fn update_status(conn: &mut MpdConnection, status: &mut Status, sender
         let next = old_status.next_song != status.next_song;
         sender.send(StateChanged::Song(prev, next)).await.unwrap();
     }
-    if old_status.next_song.is_some() != status.next_song.is_some()
-        || old_status.playlist_length != status.playlist_length
-    {
+    if old_status.next_song.is_some() != status.next_song.is_some() || old_status.playlist_length != status.playlist_length {
         sender.send(StateChanged::Playlist).await.unwrap();
     }
 
