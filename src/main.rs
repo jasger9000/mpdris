@@ -2,6 +2,7 @@ mod args;
 mod config;
 mod connection;
 mod dbus;
+mod notify;
 
 use async_std::sync::Mutex;
 use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
@@ -14,6 +15,7 @@ use signal_hook::{consts::TERM_SIGNALS, flag, iterator::Signals, low_level::emul
 use crate::args::Args;
 use crate::config::Config;
 use crate::connection::MpdClient;
+use crate::notify::*;
 
 #[rustfmt::skip]
 const VERSION_STR: &str = concat!("Running ", env!("CARGO_BIN_NAME"), " v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
@@ -65,21 +67,32 @@ async fn main() {
         .await
         .unwrap_or_else(|err| panic!("Could not serve the dbus interface: {err}"));
 
+    if args.service {
+        notify_systemd("READY=1");
+    }
+
     let handle = signals.handle();
     for signal in &mut signals {
         match signal {
             SIGHUP => {
                 println!("Received SIGHUP, reloading config");
+                if args.service {
+                    let time = monotonic_time().as_micros();
+                    notify_systemd(&format!("RELOADING=1\nMONOTONIC_USEC={time}"));
+                }
+
                 match Config::load_config(&config_path, &args).await {
                     Ok(c) => {
                         *config.lock().await = c;
 
                         conn.reconnect().await.unwrap_or_else(|err| {
-                            eprintln!("Could not reconnect to mpd: {err}");
-                            eprintln!("Exiting...");
-                            exit(EXIT_FAILURE);
+                            eprintln!("Could not reconnect to mpd, quitting: {err}");
+                            handle.close();
                         });
 
+                        if args.service {
+                            notify_systemd("READY=1");
+                        }
                         println!("Reload complete!");
                     }
                     Err(err) => {
@@ -96,10 +109,14 @@ async fn main() {
                 });
             }
             _ => {
-                eprintln!("Received signal, quitting...");
+                eprintln!("Received exit signal, quitting...");
                 handle.close();
             }
         }
+    }
+
+    if args.service {
+        notify_systemd("STOPPING=1")
     }
 }
 
