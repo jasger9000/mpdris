@@ -52,10 +52,7 @@ fn id_to_path<'a>(id: u32) -> ObjectPath<'a> {
 }
 
 fn path_to_id(path: &ObjectPath<'_>) -> Option<u32> {
-    let Some(stripped) = path.strip_prefix(TRACKID_PATH_BASE) else {
-        return None;
-    };
-    stripped.parse().ok()
+    path.strip_prefix(TRACKID_PATH_BASE)?.parse().ok()
 }
 
 async fn send_signals(connection: &Connection, recv: &Receiver<StateChanged>) -> zbus::Result<()> {

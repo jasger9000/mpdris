@@ -81,7 +81,7 @@ async fn main() {
                     notify_systemd(&format!("RELOADING=1\nMONOTONIC_USEC={time}"));
                 }
 
-                match Config::load_config(&config_path, &args).await {
+                match Config::load_config(config_path, &args).await {
                     Ok(c) => {
                         *config.lock().await = c;
 
@@ -140,7 +140,7 @@ fn get_signals(is_daemon: bool) -> io::Result<Signals> {
         sigs.push(&SIGHUP);
     }
 
-    Ok(Signals::new(sigs)?)
+    Signals::new(sigs)
 }
 
 /// Gets the default config path from the enviroment.

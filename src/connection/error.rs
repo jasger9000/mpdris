@@ -3,8 +3,7 @@ mod tests;
 
 use std::error::Error as stdError;
 use std::fmt::{self, Display, Formatter};
-use std::str::Utf8Error;
-use std::{io, usize};
+use std::{io, str::Utf8Error};
 
 pub type MPDResult<T> = Result<T, Error>;
 

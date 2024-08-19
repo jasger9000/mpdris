@@ -102,23 +102,18 @@ impl Song {
             for ext in img_exts {
                 let path = path.with_extension(ext);
                 if metadata(&path).await.is_ok() {
-                    let Some(path) = path.to_str() else {
-                        return None;
-                    };
-                    return Some(format!("file://{path}"));
+                    return Some(format!("file://{}", path.to_str()?));
                 }
             }
-            return None;
+            None
         }
 
         if let Some(path) = check_path(&covers).await {
             Some(path)
         } else if let Some(path) = check_path(&uri).await {
             Some(path)
-        } else if let Some(path) = check_path(&uri.with_file_name("cover")).await {
-            Some(path)
         } else {
-            None
+            check_path(&uri.with_file_name("cover")).await
         }
     }
 }
@@ -145,7 +140,7 @@ impl From<Vec<(String, String)>> for Song {
             }
         }
 
-        return song;
+        song
     }
 }
 

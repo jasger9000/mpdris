@@ -83,8 +83,8 @@ impl Config {
     /// - If the file does not exist, it will use the standard config instead.
     /// - If a value is missing from the config, it will warn the user and use the default value.
     /// - If the `$MPD_HOST` or `$MPD_PORT` environment variable is defined,
-    /// it will take its values instead of the ones specified in the config as per
-    /// the [MPD client specifications](https://mpd.readthedocs.io/en/stable/client.html#connecting-to-mpd)
+    ///   it will take its values instead of the ones specified in the config as per
+    ///   the [MPD client specifications](https://mpd.readthedocs.io/en/stable/client.html#connecting-to-mpd)
     /// - If an argument is specified it will use the value from the argument
     ///
     /// ## Errors

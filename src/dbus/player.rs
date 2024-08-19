@@ -289,7 +289,7 @@ impl PlayerInterface {
             }
         }
 
-        return map;
+        map
     }
 
     #[zbus(property)]
@@ -318,7 +318,7 @@ impl PlayerInterface {
     #[zbus(property)]
     async fn position(&self) -> fdo::Result<i64> {
         self.mpd.update_status().await?;
-        return Ok(self.status.lock().await.elapsed.unwrap_or(Duration::ZERO).as_micros() as i64);
+        Ok(self.status.lock().await.elapsed.unwrap_or(Duration::ZERO).as_micros() as i64)
     }
 
     #[zbus(property)]

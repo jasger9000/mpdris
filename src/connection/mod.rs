@@ -150,7 +150,7 @@ impl MpdConnection {
 
                         attempts += 1;
                         if attempts > retries {
-                            return Err(err.into());
+                            return Err(err);
                         }
                     } else {
                         eprintln!("Could not connect: {err}");
