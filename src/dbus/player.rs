@@ -6,7 +6,7 @@ use zbus::{
     SignalContext,
 };
 
-use crate::config::Config;
+use crate::config::config;
 use crate::connection::{MpdClient, PlayState, Repeat, Status};
 
 use super::{id_to_path, path_to_id};
@@ -14,17 +14,12 @@ use super::{id_to_path, path_to_id};
 pub struct PlayerInterface {
     mpd: Arc<MpdClient>,
     status: Arc<Mutex<Status>>,
-    config: Arc<Mutex<Config>>,
 }
 
 impl PlayerInterface {
-    pub async fn new(connection: Arc<MpdClient>, config: Arc<Mutex<Config>>) -> Self {
+    pub async fn new(connection: Arc<MpdClient>) -> Self {
         let status = connection.get_status();
-        Self {
-            mpd: connection,
-            status,
-            config,
-        }
+        Self { mpd: connection, status }
     }
 }
 
@@ -244,7 +239,9 @@ impl PlayerInterface {
     #[zbus(property)]
     async fn metadata(&self) -> HashMap<&str, Value> {
         let s = self.status.lock().await;
-        let music_dir = &self.config.lock().await.music_directory;
+        let c = config().read().await;
+
+        let music_dir: &str = &c.music_directory;
         let mut map = HashMap::new();
 
         if let Some(song) = &s.current_song {

@@ -2,6 +2,8 @@ use async_std::{channel::Sender, fs::metadata};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use crate::config::config;
+
 use super::MPDResult;
 use super::MpdConnection;
 
@@ -92,7 +94,7 @@ impl Song {
         }
     }
 
-    pub async fn find_cover_url(&self, base: &String) -> Option<String> {
+    pub async fn find_cover_url(&self, base: &str) -> Option<String> {
         let covers: PathBuf = [base, "covers", &self.uri].iter().collect();
         let uri: PathBuf = [base, &self.uri].iter().collect();
 

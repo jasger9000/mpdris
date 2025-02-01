@@ -4,7 +4,6 @@ mod connection;
 mod dbus;
 mod notify;
 
-use async_std::sync::Mutex;
 use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
 use once_cell::sync::Lazy;
 use std::sync::{atomic::AtomicBool, Arc};
@@ -13,7 +12,7 @@ use std::{env, io, path::PathBuf, process::exit};
 use signal_hook::{consts::TERM_SIGNALS, flag, iterator::Signals, low_level::emulate_default_handler};
 
 use crate::args::Args;
-use crate::config::Config;
+use crate::config::{config, Config, CONFIG};
 use crate::connection::MpdClient;
 use crate::notify::*;
 
@@ -43,7 +42,7 @@ async fn main() {
         })
     };
 
-    let config = {
+    {
         let config = Config::load_config(config_path, &args).await.unwrap_or_else(|err| {
             eprintln!("Error occurred while trying to load the config: {err}");
             exit(EXIT_FAILURE);
@@ -54,16 +53,16 @@ async fn main() {
                 eprintln!("Could not write config file: {err}");
             });
         }
-        Arc::new(Mutex::new(config))
-    };
+        CONFIG.set(config.into()).expect("CONFIG should not have been written to");
+    }
 
     // Main app here
-    let (conn, recv) = MpdClient::new(config.clone())
+    let (conn, recv) = MpdClient::new()
         .await
         .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}"));
     let conn = Arc::new(conn);
 
-    let _interface = dbus::serve(conn.clone(), recv, config.clone())
+    let _interface = dbus::serve(conn.clone(), recv)
         .await
         .unwrap_or_else(|err| panic!("Could not serve the dbus interface: {err}"));
 
@@ -83,7 +82,7 @@ async fn main() {
 
                 match Config::load_config(config_path, &args).await {
                     Ok(c) => {
-                        *config.lock().await = c;
+                        *config().write().await = c;
 
                         conn.reconnect().await.unwrap_or_else(|err| {
                             eprintln!("Could not reconnect to mpd, quitting: {err}");

@@ -17,7 +17,7 @@ use futures_util::{
     pin_mut, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt,
 };
 
-use crate::config::Config;
+use crate::config::{config, Config};
 
 pub use self::error::MPDResult as Result;
 pub use self::error::*;
@@ -44,21 +44,13 @@ pub struct MpdClient {
 struct MpdConnection {
     reader: BufReader<ReadHalf<TcpStream>>,
     writer: BufWriter<WriteHalf<TcpStream>>,
-    config: Arc<Mutex<Config>>,
 }
 
 impl MpdConnection {
-    pub async fn new(config: Arc<Mutex<Config>>) -> Result<Self> {
-        let (r, w) = {
-            let c = config.lock().await;
-            Self::connect(c.addr, c.port, c.retries).await?
-        };
+    pub async fn new(c: &Config) -> Result<Self> {
+        let (r, w) = Self::connect(c.addr, c.port, c.retries).await?;
 
-        let mut conn = Self {
-            reader: r,
-            writer: w,
-            config,
-        };
+        let mut conn = Self { reader: r, writer: w };
 
         conn.after_connect().await?;
         Ok(conn)
@@ -165,7 +157,7 @@ impl MpdConnection {
 
     pub async fn reconnect(&mut self) -> Result<()> {
         {
-            let c = self.config.lock().await;
+            let c = config().read().await;
 
             println!("Reconnecting to server on ip-address: {} using port: {}", c.addr, c.port);
             let (r, w) = Self::connect(c.addr, c.port, c.retries).await?;
@@ -262,17 +254,16 @@ impl MpdClient {
         Ok(())
     }
 
-    pub async fn new(config: Arc<Mutex<Config>>) -> Result<(Self, Receiver<StateChanged>)> {
-        let c = config.lock().await;
+    pub async fn new() -> Result<(Self, Receiver<StateChanged>)> {
+        let c = config().read().await;
 
         println!("Connecting to server on ip-address: {} using port: {}", c.addr, c.port);
 
-        drop(c);
         let (sender, recv) = unbounded();
         let status = Arc::new(Mutex::new(Status::new()));
-        let connection = Arc::new(Mutex::new(MpdConnection::new(config.clone()).await?));
+        let connection = Arc::new(Mutex::new(MpdConnection::new(&c).await?));
         println!("Connecting second stream to ask for updates");
-        let idle_connection = Arc::new(Mutex::new(MpdConnection::new(config.clone()).await?));
+        let idle_connection = Arc::new(Mutex::new(MpdConnection::new(&c).await?));
         let (drop_idle_lock, drop_lock) = bounded(1);
 
         let idle_conn = Arc::clone(&idle_connection);

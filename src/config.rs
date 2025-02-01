@@ -1,6 +1,7 @@
-use async_std::{fs, io};
-use once_cell::sync::Lazy;
+use async_std::{fs, io, sync::RwLock};
+use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Serialize};
+
 use std::net::{IpAddr, Ipv4Addr};
 use std::{env, path::Path};
 
@@ -33,6 +34,15 @@ const DEFAULT_ADDR: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 const DEFAULT_PORT: u16 = 6600;
 const DEFAULT_RETRIES: isize = 3;
 static DEFAULT_MUSIC_DIR: Lazy<String> = Lazy::new(|| format!("{}/Music", *HOME_DIR));
+
+pub static CONFIG: OnceCell<RwLock<Config>> = OnceCell::new();
+
+/// Returns a refrence to the global CONFIG value.
+///
+/// Panics when the config was not assigned
+pub fn config() -> &'static RwLock<Config> {
+    CONFIG.get().expect("Config should always be assigned")
+}
 
 impl Config {
     pub fn new() -> Self {
