@@ -4,7 +4,7 @@ mod connection;
 mod dbus;
 mod notify;
 
-use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
+use libc::{kill, EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
 use once_cell::sync::Lazy;
 use std::sync::{atomic::AtomicBool, Arc};
 use std::{env, io, path::PathBuf, process::exit};
@@ -140,6 +140,25 @@ fn get_signals(is_daemon: bool) -> io::Result<Signals> {
     }
 
     Signals::new(sigs)
+}
+
+/// Sends a signal to the specified PID, uses libc::kill as the underlying implementation
+///
+/// For more information see the libc documentation for kill
+///
+/// # Errors:
+/// [InvalidInput](io::ErrorKind::InvalidInput): An invalid signal was specified.<br />
+/// [PermissionDenied](io::ErrorKind::PermissionDenied): The calling process does not have
+/// permission to send the signal to any of the target processes.<br />
+/// [Uncategorized](io::ErrorKind::Uncategorized): The target process or process group does not exist.
+fn send_sig(pid: u32, signal: i32) -> io::Result<()> {
+    unsafe {
+        if kill(pid as i32, signal) != 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    }
 }
 
 /// Gets the default config path from the enviroment.

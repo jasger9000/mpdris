@@ -16,8 +16,10 @@ use futures_util::{
     io::{ReadHalf, WriteHalf},
     pin_mut, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt,
 };
+use libc::SIGTERM;
 
 use crate::config::{config, Config};
+use crate::send_sig;
 
 pub use self::error::MPDResult as Result;
 pub use self::error::*;
@@ -160,7 +162,15 @@ impl MpdConnection {
             let c = config().read().await;
 
             println!("Reconnecting to server on ip-address: {} using port: {}", c.addr, c.port);
-            let (r, w) = Self::connect(c.addr, c.port, c.retries).await?;
+            let (r, w) = Self::connect(c.addr, c.port, c.retries).await.unwrap_or_else(|e| {
+                eprintln!("Failed to reconnect to MPD, exiting: {e}");
+                send_sig(std::process::id(), SIGTERM).expect("should always be able to send signal");
+                loop {
+                    // wait for the signal handler to gracefully shut down
+                    std::thread::sleep(Duration::from_secs(u64::MAX));
+                }
+            });
+
             self.reader = r;
             self.writer = w;
         }
