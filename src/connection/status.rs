@@ -97,7 +97,7 @@ impl Song {
         }
     }
 
-    pub async fn try_set_cover_url(&mut self) {
+    async fn try_set_cover_url(&mut self) {
         let base: &str = &config().read().await.music_directory;
 
         let covers: PathBuf = [base, "covers", &self.uri].iter().collect();
@@ -123,10 +123,8 @@ impl Song {
             check_path(&uri.with_file_name("cover")).await
         };
     }
-}
 
-impl From<Vec<(String, String)>> for Song {
-    fn from(value: Vec<(String, String)>) -> Self {
+    async fn from_response(value: Vec<(String, String)>) -> Self {
         let mut song = Self::new();
 
         for (k, v) in value {
@@ -146,7 +144,7 @@ impl From<Vec<(String, String)>> for Song {
                 &_ => {}
             }
         }
-        song.try_set_cover_url();
+        song.try_set_cover_url().await;
 
         song
     }
@@ -223,7 +221,7 @@ pub async fn update_status(conn: &mut MpdConnection, status: &mut Status, sender
                 let old_id = old_status.current_song.as_ref().map_or_else(|| u32::MIN, |s| s.id);
 
                 if id != old_id {
-                    status.current_song = Some(conn.request_data("currentsong").await?.into());
+                    status.current_song = Some(Song::from_response(conn.request_data("currentsong").await?).await);
                 } else {
                     status.current_song = old_status.current_song.clone();
                 }
