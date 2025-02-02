@@ -1,5 +1,6 @@
 use async_std::{channel::Sender, fs::metadata};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::config::config;
@@ -61,16 +62,16 @@ pub enum Repeat {
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Song {
-    pub uri: String,
-    pub artists: Option<Vec<String>>,
-    pub album: Option<String>,
-    pub album_artists: Option<Vec<String>>,
-    pub title: Option<String>,
+    pub uri: Arc<str>,
+    pub artists: Option<Vec<Arc<str>>>,
+    pub album: Option<Arc<str>>,
+    pub album_artists: Option<Vec<Arc<str>>>,
+    pub title: Option<Arc<str>>,
     pub track: Option<u8>,
-    pub genre: Option<Vec<String>>,
+    pub genre: Option<Vec<Arc<str>>>,
     pub date: Option<u32>,
-    pub composer: Option<Vec<String>>,
-    pub comment: Option<Vec<String>>,
+    pub composer: Option<Vec<Arc<str>>>,
+    pub comment: Option<Vec<Arc<str>>>,
     pub disc: Option<u8>,
     pub id: u32,
 }
@@ -79,7 +80,7 @@ impl Song {
     /// Creates a new empty song
     pub fn new() -> Self {
         Self {
-            uri: String::new(),
+            uri: "".into(),
             artists: None,
             album: None,
             album_artists: None,
@@ -126,11 +127,11 @@ impl From<Vec<(String, String)>> for Song {
 
         for (k, v) in value {
             match k.as_str() {
-                "file" => song.uri = v,
+                "file" => song.uri = v.into(),
                 "Artist" => add_to_vec(&mut song.artists, v),
-                "Album" => song.album = Some(v),
+                "Album" => song.album = Some(v.into()),
                 "AlbumArtist" => add_to_vec(&mut song.album_artists, v),
-                "Title" => song.title = Some(v),
+                "Title" => song.title = Some(v.into()),
                 "Track" => song.track = v.parse().ok(),
                 "Genre" => add_to_vec(&mut song.genre, v),
                 "Date" => song.date = v.parse().ok(),
@@ -147,11 +148,11 @@ impl From<Vec<(String, String)>> for Song {
 }
 
 /// Pushes value to the vec if it is some or creates a new Vec with value
-fn add_to_vec(vec: &mut Option<Vec<String>>, value: String) {
+fn add_to_vec<T, V: Into<T>>(vec: &mut Option<Vec<T>>, value: V) {
     if let Some(vec) = vec {
-        vec.push(value);
+        vec.push(value.into());
     } else {
-        *vec = Some(vec![value]);
+        *vec = Some(vec![value.into()]);
     }
 }
 

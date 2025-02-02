@@ -251,35 +251,35 @@ impl PlayerInterface {
             if let Some(duration) = s.duration {
                 map.insert("mpris:length", (duration.as_micros() as i64).into());
             }
-            if let Some(cover) = &song.find_cover_url(music_dir).await {
-                map.insert("mpris:artUrl", cover.clone().into());
+            if let Some(cover) = song.find_cover_url(music_dir).await {
+                map.insert("mpris:artUrl", cover.into());
             }
             if let Some(album) = &song.album {
-                map.insert("xesam:album", album.clone().into());
+                map.insert("xesam:album", Value::Str(Arc::clone(album).into()));
             }
             if let Some(album_artists) = &song.album_artists {
-                map.insert("xesam:albumArtist", album_artists.clone().into());
+                map.insert("xesam:albumArtist", map_vec(album_artists));
             }
             if let Some(artists) = &song.artists {
-                map.insert("xesam:artist", artists.clone().into());
+                map.insert("xesam:artist", map_vec(artists));
             }
             if let Some(comment) = &song.comment {
-                map.insert("xesam:comment", comment.clone().into());
+                map.insert("xesam:comment", map_vec(comment));
             }
             if let Some(composer) = &song.composer {
-                map.insert("xesam:composer", composer.clone().into());
+                map.insert("xesam:composer", map_vec(composer));
             }
-            if let Some(date) = &song.date {
+            if let Some(date) = song.date {
                 map.insert("xesam:contentCreated", format!("{date}-01-01T00:00+0000").into());
             }
             if let Some(disc) = song.disc {
                 map.insert("xesam:discNumber", disc.into());
             }
             if let Some(genre) = &song.genre {
-                map.insert("xesam:genre", genre.clone().into());
+                map.insert("xesam:genre", map_vec(genre));
             }
             if let Some(title) = &song.title {
-                map.insert("xesam:title", title.clone().into());
+                map.insert("xesam:title", Value::Str(Arc::clone(title).into()));
             }
             if let Some(track) = song.track {
                 map.insert("xesam:trackNumber", track.into());
@@ -371,4 +371,13 @@ impl PlayerInterface {
     async fn can_control(&self) -> bool {
         true
     }
+}
+
+/// Maps a Vec<Arc<str>> to Value::Array for the time being, since Value should really implement
+/// From<Arc<str>>. Please see https://github.com/dbus2/zbus/issues/1234
+fn map_vec(vec: &[Arc<str>]) -> Value<'static> {
+    vec.iter()
+        .map(|v| Value::Str(Arc::clone(v).into()))
+        .collect::<Vec<_>>()
+        .into()
 }
