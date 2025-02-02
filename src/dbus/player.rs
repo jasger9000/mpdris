@@ -251,8 +251,8 @@ impl PlayerInterface {
             if let Some(duration) = s.duration {
                 map.insert("mpris:length", (duration.as_micros() as i64).into());
             }
-            if let Some(cover) = song.find_cover_url(music_dir).await {
-                map.insert("mpris:artUrl", cover.into());
+            if let Some(cover) = &song.cover {
+                map.insert("mpris:artUrl", Value::Str(Arc::clone(cover).into()));
             }
             if let Some(album) = &song.album {
                 map.insert("xesam:album", Value::Str(Arc::clone(album).into()));

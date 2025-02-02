@@ -63,6 +63,7 @@ pub enum Repeat {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Song {
     pub uri: Arc<str>,
+    pub cover: Option<Arc<str>>,
     pub artists: Option<Vec<Arc<str>>>,
     pub album: Option<Arc<str>>,
     pub album_artists: Option<Vec<Arc<str>>>,
@@ -81,6 +82,7 @@ impl Song {
     pub fn new() -> Self {
         Self {
             uri: "".into(),
+            cover: None,
             artists: None,
             album: None,
             album_artists: None,
@@ -95,29 +97,31 @@ impl Song {
         }
     }
 
-    pub async fn find_cover_url(&self, base: &str) -> Option<String> {
+    pub async fn try_set_cover_url(&mut self) {
+        let base: &str = &config().read().await.music_directory;
+
         let covers: PathBuf = [base, "covers", &self.uri].iter().collect();
         let uri: PathBuf = [base, &self.uri].iter().collect();
 
-        async fn check_path(path: &Path) -> Option<String> {
+        async fn check_path(path: &Path) -> Option<Arc<str>> {
             let img_exts = ["jpg", "jpeg", "png", "webp", "avif", "jxl", "bmp", "gif", "heif", "heic"];
 
             for ext in img_exts {
                 let path = path.with_extension(ext);
                 if metadata(&path).await.is_ok() {
-                    return Some(format!("file://{}", path.to_str()?));
+                    return Some(format!("file://{}", path.to_str()?).into());
                 }
             }
             None
         }
 
-        if let Some(path) = check_path(&covers).await {
+        self.cover = if let Some(path) = check_path(&covers).await {
             Some(path)
         } else if let Some(path) = check_path(&uri).await {
             Some(path)
         } else {
             check_path(&uri.with_file_name("cover")).await
-        }
+        };
     }
 }
 
@@ -142,6 +146,7 @@ impl From<Vec<(String, String)>> for Song {
                 &_ => {}
             }
         }
+        song.try_set_cover_url();
 
         song
     }
