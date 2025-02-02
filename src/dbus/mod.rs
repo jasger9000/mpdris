@@ -3,7 +3,7 @@ use async_std::task::{spawn, JoinHandle};
 use std::sync::Arc;
 use zbus::zvariant::ObjectPath;
 use zbus::Connection;
-use zbus::{connection::Builder, InterfaceRef};
+use zbus::{connection::Builder, object_server::InterfaceRef};
 
 use base::BaseInterface;
 use player::PlayerInterface;
@@ -62,11 +62,11 @@ async fn send_signals(connection: &Connection, recv: &Receiver<StateChanged>) ->
         let change = recv.recv().await.expect("Channel must always be open");
 
         let player_iface = player_iface_ref.get_mut().await;
-        let player_ctxt = player_iface_ref.signal_context();
+        let player_ctxt = player_iface_ref.signal_emitter();
 
         match change {
             Position(ms) => {
-                player_iface.seeked(player_ctxt, ms).await?;
+                PlayerInterface::seeked(player_ctxt, ms).await?;
             }
             Song(prev, next) => {
                 player_iface.metadata_changed(player_ctxt).await?;

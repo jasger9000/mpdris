@@ -2,8 +2,8 @@ use async_std::sync::RwLock;
 use std::{collections::HashMap, ops::Add, sync::Arc, time::Duration};
 use zbus::{
     fdo, interface,
+    object_server::SignalEmitter,
     zvariant::{ObjectPath, Value},
-    SignalContext,
 };
 
 use crate::config::config;
@@ -104,7 +104,7 @@ impl PlayerInterface {
         })
     }
 
-    async fn seek(&mut self, ms: i64, #[zbus(signal_context)] ctxt: SignalContext<'_>) -> fdo::Result<()> {
+    async fn seek(&mut self, ms: i64, #[zbus(signal_emitter)] ctxt: SignalEmitter<'_>) -> fdo::Result<()> {
         let s = self.status.read().await;
         let is_positive = ms > 0;
         let ms = Duration::from_micros(ms.unsigned_abs());
@@ -123,8 +123,7 @@ impl PlayerInterface {
             }
         }
 
-        self.seeked(&ctxt, s.elapsed.unwrap_or(Duration::ZERO).add(ms).as_micros() as i64)
-            .await?;
+        Self::seeked(&ctxt, s.elapsed.unwrap_or(Duration::ZERO).add(ms).as_micros() as i64).await?;
 
         Ok(())
     }
@@ -133,7 +132,7 @@ impl PlayerInterface {
         &mut self,
         track_path: ObjectPath<'_>,
         ms: i64,
-        #[zbus(signal_context)] ctxt: SignalContext<'_>,
+        #[zbus(signal_emitter)] ctxt: SignalEmitter<'_>,
     ) -> fdo::Result<()> {
         if ms < 0 {
             return Ok(());
@@ -160,13 +159,13 @@ impl PlayerInterface {
             }
         }
 
-        self.seeked(&ctxt, ms).await?;
+        Self::seeked(&ctxt, ms).await?;
 
         Ok(())
     }
 
     #[zbus(signal)]
-    pub async fn seeked(&self, ctxt: &SignalContext<'_>, ms: i64) -> zbus::Result<()>;
+    pub async fn seeked(ctxt: &SignalEmitter<'_>, ms: i64) -> zbus::Result<()>;
 
     #[zbus(property)]
     async fn playback_status(&self) -> &str {
