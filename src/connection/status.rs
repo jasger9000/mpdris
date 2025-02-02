@@ -60,7 +60,7 @@ pub enum Repeat {
     Single = 2,
 }
 
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Song {
     pub uri: Arc<str>,
     pub cover: Option<Arc<str>>,
@@ -75,6 +75,13 @@ pub struct Song {
     pub comment: Option<Vec<Arc<str>>>,
     pub disc: Option<u8>,
     pub id: u32,
+}
+
+impl Eq for Song {}
+impl PartialEq for Song {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
 }
 
 impl Song {
