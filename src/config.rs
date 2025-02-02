@@ -1,5 +1,5 @@
 use async_std::{fs, io, sync::RwLock};
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use std::net::{IpAddr, Ipv4Addr};
@@ -21,7 +21,7 @@ pub struct Config {
     pub retries: isize,
     #[serde(default = "default_music_dir")]
     /// The root directory MPD uses to play music
-    pub music_directory: String,
+    pub music_directory: Box<str>,
 }
 
 impl Default for Config {
@@ -33,7 +33,6 @@ impl Default for Config {
 const DEFAULT_ADDR: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 const DEFAULT_PORT: u16 = 6600;
 const DEFAULT_RETRIES: isize = 3;
-static DEFAULT_MUSIC_DIR: Lazy<String> = Lazy::new(|| format!("{}/Music", *HOME_DIR));
 
 pub static CONFIG: OnceCell<RwLock<Config>> = OnceCell::new();
 
@@ -50,7 +49,7 @@ impl Config {
             addr: DEFAULT_ADDR,
             port: DEFAULT_PORT,
             retries: DEFAULT_RETRIES,
-            music_directory: DEFAULT_MUSIC_DIR.to_owned(),
+            music_directory: default_music_dir(),
         }
     }
 
@@ -171,12 +170,10 @@ impl Config {
     }
 }
 
-fn default_music_dir() -> String {
-    eprintln!(
-        "Missing value `music_directory` in config, using default: {}",
-        *DEFAULT_MUSIC_DIR
-    );
-    DEFAULT_MUSIC_DIR.to_owned()
+fn default_music_dir() -> Box<str> {
+    let dir = format!("{}/Music", *HOME_DIR).into_boxed_str();
+    eprintln!("Missing value `music_directory` in config, using default: {dir}");
+    dir
 }
 fn default_addr() -> IpAddr {
     eprintln!("Missing value `addr` in config, using default: {DEFAULT_ADDR}");
