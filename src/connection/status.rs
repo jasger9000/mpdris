@@ -184,9 +184,10 @@ pub enum StateChanged {
 /// Boolean is true when MPD was previously playing and still is, and the current song hasn't changed
 pub async fn update_status(conn: &mut MpdConnection, status: &mut Status, sender: &Sender<StateChanged>) -> MPDResult<bool> {
     let res = conn.request_data("status").await?;
-    let old_status = replace(status, Status::new());
+    let mut old_status = replace(status, Status::new());
 
     let mut is_single = false;
+    let mut song_changed = false;
 
     for (k, v) in res {
         match k.as_str() {
@@ -228,8 +229,9 @@ pub async fn update_status(conn: &mut MpdConnection, status: &mut Status, sender
 
                 if id != old_id {
                     status.current_song = Some(Song::from_response(conn.request_data("currentsong").await?).await);
+                    song_changed = true;
                 } else {
-                    status.current_song = old_status.current_song.clone();
+                    status.current_song = old_status.current_song.take();
                 }
             }
             "volume" => status.volume = v.parse().unwrap_or(0),
@@ -260,7 +262,7 @@ pub async fn update_status(conn: &mut MpdConnection, status: &mut Status, sender
     if old_status.shuffle != status.shuffle {
         sender.send(StateChanged::Shuffle).await.unwrap();
     }
-    if old_status.current_song != status.current_song {
+    if song_changed {
         let prev = old_status.playlist_length != status.playlist_length
             && ((status.playlist_length < 1) != (old_status.playlist_length < 1));
         let next = old_status.next_song != status.next_song;
