@@ -1,4 +1,4 @@
-use async_std::sync::Mutex;
+use async_std::sync::RwLock;
 use std::{collections::HashMap, ops::Add, sync::Arc, time::Duration};
 use zbus::{
     fdo, interface,
@@ -13,7 +13,7 @@ use super::{id_to_path, path_to_id};
 
 pub struct PlayerInterface {
     mpd: Arc<MpdClient>,
-    status: Arc<Mutex<Status>>,
+    status: Arc<RwLock<Status>>,
 }
 
 impl PlayerInterface {
@@ -26,7 +26,7 @@ impl PlayerInterface {
 #[interface(name = "org.mpris.MediaPlayer2.Player")]
 impl PlayerInterface {
     async fn next(&mut self) -> fdo::Result<()> {
-        let s = self.status.lock().await;
+        let s = self.status.read().await;
 
         if let Some(next_id) = s.next_song {
             self.mpd.play_song(next_id).await.map_err(|err| {
@@ -44,7 +44,7 @@ impl PlayerInterface {
     }
 
     async fn previous(&mut self) -> fdo::Result<()> {
-        let s = self.status.lock().await;
+        let s = self.status.read().await;
 
         if s.playlist_length >= 1 {
             let cmd = if s.state != PlayState::Playing {
@@ -105,7 +105,7 @@ impl PlayerInterface {
     }
 
     async fn seek(&mut self, ms: i64, #[zbus(signal_context)] ctxt: SignalContext<'_>) -> fdo::Result<()> {
-        let s = self.status.lock().await;
+        let s = self.status.read().await;
         let is_positive = ms > 0;
         let ms = Duration::from_micros(ms.unsigned_abs());
 
@@ -140,7 +140,7 @@ impl PlayerInterface {
         }
 
         let pos = Duration::from_micros(ms.unsigned_abs());
-        let s = self.status.lock().await;
+        let s = self.status.read().await;
         let Some(track_id) = path_to_id(&track_path) else {
             return Ok(());
         };
@@ -170,7 +170,7 @@ impl PlayerInterface {
 
     #[zbus(property)]
     async fn playback_status(&self) -> &str {
-        match self.status.lock().await.state {
+        match self.status.read().await.state {
             PlayState::Playing => "Playing",
             PlayState::Paused => "Paused",
             PlayState::Stopped => "Stopped",
@@ -179,7 +179,7 @@ impl PlayerInterface {
 
     #[zbus(property)]
     async fn loop_status(&self) -> &str {
-        match self.status.lock().await.repeat {
+        match self.status.read().await.repeat {
             Repeat::Off => "None",
             Repeat::On => "Playlist",
             Repeat::Single => "Track",
@@ -204,7 +204,7 @@ impl PlayerInterface {
             }
         };
 
-        self.status.lock().await.repeat = if single == 1 {
+        self.status.write().await.repeat = if single == 1 {
             Repeat::Single
         } else if repeat == 1 {
             Repeat::On
@@ -217,7 +217,7 @@ impl PlayerInterface {
 
     #[zbus(property)]
     async fn shuffle(&self) -> bool {
-        self.status.lock().await.shuffle
+        self.status.read().await.shuffle
     }
 
     #[zbus(property)]
@@ -232,13 +232,13 @@ impl PlayerInterface {
             }
         }
 
-        self.status.lock().await.shuffle = shuffle;
+        self.status.write().await.shuffle = shuffle;
         Ok(())
     }
 
     #[zbus(property)]
     async fn metadata(&self) -> HashMap<&str, Value> {
-        let s = self.status.lock().await;
+        let s = self.status.read().await;
         let c = config().read().await;
 
         let music_dir: &str = &c.music_directory;
@@ -291,7 +291,7 @@ impl PlayerInterface {
 
     #[zbus(property)]
     async fn volume(&self) -> f64 {
-        self.status.lock().await.volume as f64
+        self.status.read().await.volume as f64
     }
 
     #[zbus(property)]
@@ -308,14 +308,14 @@ impl PlayerInterface {
             }
         }
 
-        self.status.lock().await.volume = volume as u8;
+        self.status.write().await.volume = volume as u8;
         Ok(())
     }
 
     #[zbus(property)]
     async fn position(&self) -> fdo::Result<i64> {
         self.mpd.update_status().await?;
-        Ok(self.status.lock().await.elapsed.unwrap_or(Duration::ZERO).as_micros() as i64)
+        Ok(self.status.read().await.elapsed.unwrap_or(Duration::ZERO).as_micros() as i64)
     }
 
     #[zbus(property)]
@@ -344,27 +344,27 @@ impl PlayerInterface {
 
     #[zbus(property)]
     async fn can_go_next(&self) -> bool {
-        self.status.lock().await.next_song.is_some()
+        self.status.read().await.next_song.is_some()
     }
 
     #[zbus(property)]
     async fn can_go_previous(&self) -> bool {
-        self.status.lock().await.playlist_length > 1
+        self.status.read().await.playlist_length > 1
     }
 
     #[zbus(property)]
     async fn can_play(&self) -> bool {
-        self.status.lock().await.current_song.is_some()
+        self.status.read().await.current_song.is_some()
     }
 
     #[zbus(property)]
     async fn can_pause(&self) -> bool {
-        self.status.lock().await.current_song.is_some()
+        self.status.read().await.current_song.is_some()
     }
 
     #[zbus(property)]
     async fn can_seek(&self) -> bool {
-        self.status.lock().await.current_song.is_some()
+        self.status.read().await.current_song.is_some()
     }
 
     #[zbus(property)]

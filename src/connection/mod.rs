@@ -7,7 +7,7 @@ use std::time::Duration;
 use async_std::channel::{bounded, unbounded, Receiver, Sender};
 use async_std::io::{self, BufReader, BufWriter};
 use async_std::net::TcpStream;
-use async_std::sync::{Arc, Mutex};
+use async_std::sync::{Arc, Mutex, RwLock};
 use async_std::task::{sleep, spawn, JoinHandle};
 
 use const_format::concatcp;
@@ -33,7 +33,7 @@ pub struct MpdClient {
     idle_connection: Arc<Mutex<MpdConnection>>,
     drop_idle_lock: Sender<()>,
     /// Cached status
-    status: Arc<Mutex<Status>>,
+    status: Arc<RwLock<Status>>,
     sender: Sender<StateChanged>,
     #[allow(unused)]
     ping_task: JoinHandle<()>,
@@ -241,12 +241,12 @@ impl MpdClient {
         Ok(())
     }
 
-    pub fn get_status(&self) -> Arc<Mutex<Status>> {
-        self.status.clone()
+    pub fn get_status(&self) -> Arc<RwLock<Status>> {
+        Arc::clone(&self.status)
     }
 
     pub async fn update_status(&self) -> Result<()> {
-        let mut s = self.status.lock().await;
+        let mut s = self.status.write().await;
         let mut conn = self.connection.lock().await;
         let sender = &self.sender;
 
@@ -260,7 +260,7 @@ impl MpdClient {
         println!("Connecting to server on ip-address: {} using port: {}", c.addr, c.port);
 
         let (sender, recv) = unbounded();
-        let status = Arc::new(Mutex::new(Status::new()));
+        let status = Arc::new(RwLock::new(Status::new()));
         let connection = Arc::new(Mutex::new(MpdConnection::new(&c).await?));
         println!("Connecting second stream to ask for updates");
         let idle_connection = Arc::new(Mutex::new(MpdConnection::new(&c).await?));
@@ -290,7 +290,7 @@ impl MpdClient {
 
                 match result {
                     Ok(response) => {
-                        let mut s = idle_status.lock().await;
+                        let mut s = idle_status.write().await;
 
                         match status::update_status(&mut conn, &mut s, &idle_sender).await {
                             Ok(could_be_seeking) => {
