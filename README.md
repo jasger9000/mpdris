@@ -22,55 +22,61 @@ A lightweight application that implements the media player D-Bus interface [MPRI
 
 ## Installation
 To install this application, you can either...
-- Use the AUR package (Arch Linux only)
-- Build the application yourself
-- Install the application from a release binary
+- [Use the AUR package (Arch Linux only)](#use-the-aur-package)
+- [Build the application yourself](#build-the-application-yourself)
+- [Install the application from a release binary](#install-using-release-binary)
 
 ### Use the AUR package
-Disclaimer: This only works on systems using pacman
+> [!IMPORTANT]
+> This only works on systems using pacman
 
-(Note: Actual AUR package pending)
+> [!NOTE]
+> An actual AUR package is pending
+
 1. Clone the AUR package repository:
     ```bash
-    $ git clone https://gihub.com/jasger9000/mpDris-aur
+    git clone https://gihub.com/jasger9000/mpDris-aur
     ```
 2. Run the build & install command:
     ```bash
-    $ makepkg --install
+    makepkg --install --syncdeps
+    # or if you want to remove the downloaded dependencies afterwards:
+    makepkg --install --syncdeps --rmdeps
     ```
 3. Enable the service to start it with MPD
     ```bash
-    $ systemctl --user enable mpdris.service
+    systemctl --user enable mpdris.service
     ```
 
 ### Build the application yourself
 1. Clone this repository
     ```bash
-    $ git clone https://github.com/jasger9000/mpDris
+    git clone https://github.com/jasger9000/mpDris
     ```
 2. Build the project with
     ```bash
-    $ cargo build --release
+    cargo build --release
     ```
-3. Copy the resulting file from `target/release/mpDris` to `/usr/local/bin`
-4. Copy `resources/mpdris.service` to `~/.config/systemd/user`
+3. Copy the resulting file from `target/release/mpdris` to `/usr/local/bin`
+4. Copy `resources/mpdris.service` to `/usr/local/lib/systemd/user` (You might have to create that directory first)
 5. Enable the service to start it with MPD
     ```bash
-    $ systemctl --user enable mpdris.service
+    systemctl --user enable mpdris.service
     ```
 
 ### Install using release binary
 1. Go to the [release tab](https://github.com/jasger9000/mpDris/releases)
-2. Download the latest binary (should be named `mpDris`)
-3. Copy the file to `/usr/local/bin`
+2. Download the correct binary for your architecture
+    - If you don't know what your architecture is, you can find out by running `lscpu`
+3. Copy the file to `/usr/local/bin` and rename it to `mpdris`
 4. Add the execute permission to the file with
     ```bash
-    # chmod +x /usr/local/bin/mpDris
+    chmod +x /usr/local/bin/mpdris
     ```
-5. Download and move [mpdris.service](TODO) to `~/.config/systemd/user`
+5. Download and move [mpdris.service](https://github.com/jasger9000/mpDris/blob/main/resources/mpdris.service) to `/usr/local/lib/systemd/user`  (You might have to create that directory first)
 6. Enable the service to start it with MPD
     ```bash
-    $ systemctl --user enable mpdris.service
+    systemctl --user enable mpdris.service
     ```
 
 ## Configuration
@@ -93,15 +99,15 @@ Currently, supported image extensions are: `jpg`, `jpeg`, `png`, `webp`, `avif`,
 #### Example
 If you have the song `Resurrections.mp3` in `/home/johndoe/Music/Celeste/`, mpDris will search for a cover like this:
 - `/home/johndoe/Music/covers/Celeste/Resurrections.jpg`
-- `/home/johndoe/Music/covers/Celeste/Resurrections.jpeg`
+- `/home/johndoe/Music/covers/Celeste/Resurrections.png`<br />
 ...
 - `/home/johndoe/Music/Celeste/Resurrections.jpg`
+- `/home/johndoe/Music/Celeste/Resurrections.png`<br />
 ...
 - `/home/johnode/Music/Celeste/cover.jpg`
+- `/home/johnode/Music/Celeste/cover.png`<br />
 ...
 - `/home/johndoe/Music/Celeste/cover.heic`
-
-
 
 ## Roadmap
 - [x] implement base interface
