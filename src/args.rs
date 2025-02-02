@@ -3,6 +3,7 @@ use std::{net::IpAddr, path::PathBuf};
 
 /// A client implementing the dbus MPRIS standard for mpd
 #[derive(FromArgs)]
+#[argh(help_triggers("-h", "--help"))]
 pub struct Args {
     /// display version and exit
     #[argh(switch, short = 'v')]
