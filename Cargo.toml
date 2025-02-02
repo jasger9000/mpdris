@@ -1,5 +1,5 @@
 [package]
-name = "mpDris"
+name = "mpdris"
 description = "A client implementing the dbus MPRIS standard for mpd"
 version = "0.1.0"
 edition = "2021"

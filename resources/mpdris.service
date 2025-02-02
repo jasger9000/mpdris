@@ -7,7 +7,7 @@ After=mpd.service
 Type=notify-reload
 NotifyAccess=main
 Restart=on-failure
-ExecStart=/usr/local/bin/mpDris --service
+ExecStart=/usr/local/bin/mpdris --service
 
 [Install]
 RequiredBy=mpd.service

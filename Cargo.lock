@@ -563,7 +563,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mpDris"
+name = "mpdris"
 version = "0.1.0"
 dependencies = [
  "argh",
