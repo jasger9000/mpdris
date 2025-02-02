@@ -2,7 +2,6 @@ use core::panic;
 use std::{env, process::Command};
 
 fn main() {
-    
     let hash = {
         if let Ok(var) = env::var("GIT_HASH") {
             var

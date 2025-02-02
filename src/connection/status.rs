@@ -11,7 +11,7 @@ use super::MpdConnection;
 
 #[derive(Debug, Clone)]
 pub struct Status {
-    /// The play state of MPD. See: [State]
+    /// The play state of MPD. See: [PlayState]
     pub state: PlayState,
     /// The Volume MPD outputs in percent
     pub volume: u8,

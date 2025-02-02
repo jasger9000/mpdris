@@ -372,8 +372,8 @@ impl PlayerInterface {
     }
 }
 
-/// Maps a Vec<Arc<str>> to Value::Array for the time being, since Value should really implement
-/// From<Arc<str>>. Please see https://github.com/dbus2/zbus/issues/1234
+/// Maps a `Vec<Arc<str>>` to Value::Array for the time being, since Value should really implement
+/// `From<Arc<str>>`. Please see <https://github.com/dbus2/zbus/issues/1234>
 fn map_vec(vec: &[Arc<str>]) -> Value<'static> {
     vec.iter()
         .map(|v| Value::Str(Arc::clone(v).into()))
