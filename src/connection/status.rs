@@ -1,4 +1,5 @@
 use async_std::{channel::Sender, fs::metadata};
+use std::mem::replace;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -183,9 +184,7 @@ pub enum StateChanged {
 /// Boolean is true when MPD was previously playing and still is, and the current song hasn't changed
 pub async fn update_status(conn: &mut MpdConnection, status: &mut Status, sender: &Sender<StateChanged>) -> MPDResult<bool> {
     let res = conn.request_data("status").await?;
-
-    let old_status = status.clone();
-    *status = Status::new();
+    let old_status = replace(status, Status::new());
 
     let mut is_single = false;
 
