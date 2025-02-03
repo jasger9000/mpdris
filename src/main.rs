@@ -13,7 +13,7 @@ use signal_hook::{consts::TERM_SIGNALS, flag, iterator::Signals, low_level::emul
 
 use crate::args::Args;
 use crate::config::{config, Config, CONFIG};
-use crate::connection::MpdClient;
+use crate::connection::MPDClient;
 use crate::notify::*;
 
 #[rustfmt::skip]
@@ -57,7 +57,7 @@ async fn main() {
     }
 
     // Main app here
-    let (conn, recv) = MpdClient::new()
+    let (conn, recv) = MPDClient::new()
         .await
         .unwrap_or_else(|e| panic!("Could not connect to mpd server: {e}"));
     let conn = Arc::new(conn);

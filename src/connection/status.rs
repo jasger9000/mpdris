@@ -7,7 +7,7 @@ use std::time::Duration;
 use crate::config::config;
 
 use super::MPDResult;
-use super::MpdConnection;
+use super::MPDConnection;
 
 #[derive(Debug, Clone)]
 pub struct Status {
@@ -182,7 +182,7 @@ pub enum StateChanged {
 /// Returns a boolean if the query was successful, or the Error variant
 /// if there was an error with the communication with MPD.
 /// Boolean is true when MPD was previously playing and still is, and the current song hasn't changed
-pub async fn update_status(conn: &mut MpdConnection, status: &mut Status, sender: &Sender<StateChanged>) -> MPDResult<bool> {
+pub async fn update_status(conn: &mut MPDConnection, status: &mut Status, sender: &Sender<StateChanged>) -> MPDResult<bool> {
     let res = conn.request_data("status").await?;
     let mut old_status = replace(status, Status::new());
 

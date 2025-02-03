@@ -18,12 +18,12 @@ use crate::send_sig;
 /// How many bytes MPD sends at once
 const SIZE_LIMIT: usize = 1024;
 
-pub struct MpdConnection {
+pub struct MPDConnection {
     reader: BufReader<ReadHalf<TcpStream>>,
     writer: BufWriter<WriteHalf<TcpStream>>,
 }
 
-impl MpdConnection {
+impl MPDConnection {
     pub async fn new(c: &Config) -> Result<Self> {
         let (r, w) = Self::connect(c.addr, c.port, c.retries).await?;
 

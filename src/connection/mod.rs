@@ -7,7 +7,7 @@ use async_std::task::{sleep, spawn, JoinHandle};
 use futures_util::future::{join, select, Either};
 use futures_util::pin_mut;
 
-use self::connection::MpdConnection;
+use self::connection::MPDConnection;
 pub use self::error::MPDResult as Result;
 pub use self::error::*;
 pub use self::status::{PlayState, Repeat, StateChanged, Status};
@@ -20,9 +20,9 @@ mod status;
 /// Request that gets send when the connection waits for something to happen
 const IDLE_REQUEST: &str = "idle stored_playlist playlist player mixer options";
 
-pub struct MpdClient {
-    connection: Arc<Mutex<MpdConnection>>,
-    idle_connection: Arc<Mutex<MpdConnection>>,
+pub struct MPDClient {
+    connection: Arc<Mutex<MPDConnection>>,
+    idle_connection: Arc<Mutex<MPDConnection>>,
     drop_idle_lock: Sender<()>,
     /// Cached status
     status: Arc<RwLock<Status>>,
@@ -33,7 +33,7 @@ pub struct MpdClient {
     idle_task: JoinHandle<()>,
 }
 
-impl MpdClient {
+impl MPDClient {
     pub async fn request_data(&self, request: &str) -> Result<Vec<(String, String)>> {
         let mut c = self.connection.lock().await;
 
@@ -125,9 +125,10 @@ impl MpdClient {
 
         let (sender, recv) = unbounded();
         let status = Arc::new(RwLock::new(Status::new()));
-        let connection = Arc::new(Mutex::new(MpdConnection::new(&c).await?));
+        let connection = Arc::new(Mutex::new(MPDConnection::new(&c).await?));
+
         println!("Connecting second stream to ask for updates");
-        let idle_connection = Arc::new(Mutex::new(MpdConnection::new(&c).await?));
+        let idle_connection = Arc::new(Mutex::new(MPDConnection::new(&c).await?));
         let (drop_idle_lock, drop_lock) = bounded(1);
 
         let idle_conn = Arc::clone(&idle_connection);

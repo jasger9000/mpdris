@@ -7,17 +7,17 @@ use zbus::{
 };
 
 use crate::config::config;
-use crate::connection::{MpdClient, PlayState, Repeat, Status};
+use crate::connection::{MPDClient, PlayState, Repeat, Status};
 
 use super::{id_to_path, path_to_id};
 
 pub struct PlayerInterface {
-    mpd: Arc<MpdClient>,
+    mpd: Arc<MPDClient>,
     status: Arc<RwLock<Status>>,
 }
 
 impl PlayerInterface {
-    pub async fn new(connection: Arc<MpdClient>) -> Self {
+    pub async fn new(connection: Arc<MPDClient>) -> Self {
         let status = connection.get_status();
         Self { mpd: connection, status }
     }

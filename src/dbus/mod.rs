@@ -8,7 +8,7 @@ use zbus::{connection::Builder, object_server::InterfaceRef};
 use base::BaseInterface;
 use player::PlayerInterface;
 
-use crate::connection::{MpdClient, StateChanged};
+use crate::connection::{MPDClient, StateChanged};
 
 mod base;
 mod player;
@@ -18,7 +18,7 @@ const PATH: &str = "/org/mpris/MediaPlayer2";
 const TRACKID_PATH_BASE: &str = "/org/musicpd/mpris/";
 
 pub async fn serve(
-    connection: Arc<MpdClient>,
+    connection: Arc<MPDClient>,
     recv: Receiver<StateChanged>,
 ) -> Result<(Connection, JoinHandle<()>), zbus::Error> {
     let base = BaseInterface::new();
