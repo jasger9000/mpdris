@@ -136,62 +136,8 @@ impl MPDClient {
         let idle_status = Arc::clone(&status);
         let ping_conn = Arc::clone(&connection);
 
-        let idle_task = spawn(async move {
-            loop {
-                sleep(Duration::from_nanos(1)).await; // necessary to acquire lock in reconnect fn
-                let mut conn = idle_conn.lock().await;
-                let result = {
-                    let request = conn.request_data(IDLE_REQUEST);
-                    let drop_lock = async {
-                        drop_lock.recv().await.expect("Channel must always be open");
-                    };
-
-                    pin_mut!(request, drop_lock);
-                    match select(drop_lock, request).await {
-                        Either::Left((_, _)) => continue,
-                        Either::Right((res, _)) => res,
-                    }
-                };
-
-                match result {
-                    Ok(response) => {
-                        let mut s = idle_status.write().await;
-
-                        match status::update_status(&mut conn, &mut s, &idle_sender).await {
-                            Ok(could_be_seeking) => {
-                                if response[0].1 == "player" && could_be_seeking {
-                                    let elapsed = s.elapsed.unwrap().as_micros() as i64;
-                                    drop(s);
-
-                                    idle_sender.send(StateChanged::Position(elapsed)).await.unwrap();
-                                }
-                            }
-                            Err(err) => {
-                                eprintln!("Could not update status: {err}");
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        eprintln!("Error while awaiting change in MPD: {err}");
-                        continue;
-                    }
-                }
-            }
-        });
-        let ping_task = spawn(async move {
-            loop {
-                let mut conn = ping_conn.lock().await;
-
-                match conn.request_data("ping").await {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("Could not ping MPD: {err}");
-                    }
-                };
-                drop(conn);
-                sleep(Duration::from_secs(15)).await;
-            }
-        });
+        let idle_task = spawn(idle_task(idle_conn, idle_status, idle_sender, drop_lock));
+        let ping_task = spawn(ping_task(ping_conn));
 
         let client = Self {
             connection,
@@ -206,5 +152,68 @@ impl MPDClient {
         client.update_status().await?;
 
         Ok((client, recv))
+    }
+}
+
+async fn idle_task(
+    connection: Arc<Mutex<MPDConnection>>,
+    status: Arc<RwLock<Status>>,
+    sender: Sender<StateChanged>,
+    drop_lock: Receiver<()>,
+) {
+    loop {
+        sleep(Duration::from_nanos(1)).await; // necessary to acquire lock in reconnect fn
+        let mut conn = connection.lock().await;
+        let result = {
+            let request = conn.request_data(IDLE_REQUEST);
+            let drop_lock = async {
+                drop_lock.recv().await.expect("Channel must always be open");
+            };
+
+            pin_mut!(request, drop_lock);
+            match select(drop_lock, request).await {
+                Either::Left((_, _)) => continue,
+                Either::Right((res, _)) => res,
+            }
+        };
+
+        match result {
+            Ok(response) => {
+                let mut s = status.write().await;
+
+                match status::update_status(&mut conn, &mut s, &sender).await {
+                    Ok(could_be_seeking) => {
+                        if response[0].1 == "player" && could_be_seeking {
+                            let elapsed = s.elapsed.unwrap().as_micros() as i64;
+                            drop(s);
+
+                            sender.send(StateChanged::Position(elapsed)).await.unwrap();
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("Could not update status: {err}");
+                    }
+                }
+            }
+            Err(err) => {
+                eprintln!("Error while awaiting change in MPD: {err}");
+                continue;
+            }
+        }
+    }
+}
+
+async fn ping_task(connection: Arc<Mutex<MPDConnection>>) {
+    loop {
+        let mut conn = connection.lock().await;
+
+        match conn.request_data("ping").await {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("Could not ping MPD: {err}");
+            }
+        };
+        drop(conn);
+        sleep(Duration::from_secs(15)).await;
     }
 }
