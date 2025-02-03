@@ -7,7 +7,7 @@ use zbus::{
 };
 
 use crate::config::config;
-use crate::connection::{MPDClient, PlayState, Repeat, Status};
+use crate::client::{MPDClient, PlayState, Repeat, Status};
 
 use super::{id_to_path, path_to_id};
 

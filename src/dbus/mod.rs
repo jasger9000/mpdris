@@ -8,7 +8,7 @@ use zbus::{connection::Builder, object_server::InterfaceRef};
 use base::BaseInterface;
 use player::PlayerInterface;
 
-use crate::connection::{MPDClient, StateChanged};
+use crate::client::{MPDClient, StateChanged};
 
 mod base;
 mod player;

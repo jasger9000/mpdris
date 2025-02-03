@@ -1,6 +1,6 @@
 mod args;
 mod config;
-mod connection;
+mod client;
 mod dbus;
 mod notify;
 
@@ -13,7 +13,7 @@ use signal_hook::{consts::TERM_SIGNALS, flag, iterator::Signals, low_level::emul
 
 use crate::args::Args;
 use crate::config::{config, Config, CONFIG};
-use crate::connection::MPDClient;
+use crate::client::MPDClient;
 use crate::notify::*;
 
 #[rustfmt::skip]
