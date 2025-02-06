@@ -65,15 +65,15 @@ pub enum Repeat {
 pub struct Song {
     pub uri: Arc<str>,
     pub cover: Option<Arc<str>>,
-    pub artists: Option<Vec<Arc<str>>>,
+    pub artists: Vec<Arc<str>>,
     pub album: Option<Arc<str>>,
-    pub album_artists: Option<Vec<Arc<str>>>,
+    pub album_artists: Vec<Arc<str>>,
     pub title: Option<Arc<str>>,
     pub track: Option<u8>,
-    pub genres: Option<Vec<Arc<str>>>,
+    pub genres: Vec<Arc<str>>,
     pub date: Option<u32>,
-    pub composers: Option<Vec<Arc<str>>>,
-    pub comments: Option<Vec<Arc<str>>>,
+    pub composers: Vec<Arc<str>>,
+    pub comments: Vec<Arc<str>>,
     pub disc: Option<u8>,
     pub id: u32,
 }
@@ -91,15 +91,15 @@ impl Song {
         Self {
             uri: "".into(),
             cover: None,
-            artists: None,
+            artists: Vec::new(),
             album: None,
-            album_artists: None,
+            album_artists: Vec::new(),
             title: None,
             track: None,
-            genres: None,
+            genres: Vec::new(),
             date: None,
-            composers: None,
-            comments: None,
+            composers: Vec::new(),
+            comments: Vec::new(),
             disc: None,
             id: 0,
         }
@@ -138,15 +138,15 @@ impl Song {
         for (k, v) in value {
             match k.as_str() {
                 "file" => song.uri = v.into(),
-                "Artist" => add_to_vec(&mut song.artists, v),
+                "Artist" => song.artists.push(v.into()),
                 "Album" => song.album = Some(v.into()),
-                "AlbumArtist" => add_to_vec(&mut song.album_artists, v),
+                "AlbumArtist" => song.album_artists.push(v.into()),
                 "Title" => song.title = Some(v.into()),
                 "Track" => song.track = v.parse().ok(),
-                "Genre" => add_to_vec(&mut song.genres, v),
+                "Genre" => song.genres.push(v.into()),
                 "Date" => song.date = v.parse().ok(),
-                "Composer" => add_to_vec(&mut song.composers, v),
-                "Comment" => add_to_vec(&mut song.comments, v),
+                "Composer" => song.composers.push(v.into()),
+                "Comment" => song.comments.push(v.into()),
                 "Disc" => song.disc = v.parse().ok(),
                 "Id" => song.id = v.parse().unwrap_or(0),
                 &_ => {}
@@ -155,15 +155,6 @@ impl Song {
         song.try_set_cover_url().await;
 
         song
-    }
-}
-
-/// Pushes value to the vec if it is some or creates a new Vec with value
-fn add_to_vec<T, V: Into<T>>(vec: &mut Option<Vec<T>>, value: V) {
-    if let Some(vec) = vec {
-        vec.push(value.into());
-    } else {
-        *vec = Some(vec![value.into()]);
     }
 }
 

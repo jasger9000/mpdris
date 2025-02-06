@@ -256,17 +256,17 @@ impl PlayerInterface {
             if let Some(album) = &song.album {
                 map.insert("xesam:album", Value::Str(Arc::clone(album).into()));
             }
-            if let Some(album_artists) = &song.album_artists {
-                map.insert("xesam:albumArtist", map_vec(album_artists));
+            if !song.album_artists.is_empty() {
+                map.insert("xesam:albumArtist", map_vec(&song.album_artists));
             }
-            if let Some(artists) = &song.artists {
-                map.insert("xesam:artist", map_vec(artists));
+            if !song.artists.is_empty() {
+                map.insert("xesam:artist", map_vec(&song.artists));
             }
-            if let Some(comment) = &song.comments {
-                map.insert("xesam:comment", map_vec(comment));
+            if !song.comments.is_empty() {
+                map.insert("xesam:comment", map_vec(&song.comments));
             }
-            if let Some(composer) = &song.composers {
-                map.insert("xesam:composer", map_vec(composer));
+            if !song.composers.is_empty() {
+                map.insert("xesam:composer", map_vec(&song.composers));
             }
             if let Some(date) = song.date {
                 map.insert("xesam:contentCreated", format!("{date}-01-01T00:00+0000").into());
@@ -274,8 +274,8 @@ impl PlayerInterface {
             if let Some(disc) = song.disc {
                 map.insert("xesam:discNumber", disc.into());
             }
-            if let Some(genre) = &song.genres {
-                map.insert("xesam:genre", map_vec(genre));
+            if !song.genres.is_empty() {
+                map.insert("xesam:genre", map_vec(&song.genres));
             }
             if let Some(title) = &song.title {
                 map.insert("xesam:title", Value::Str(Arc::clone(title).into()));
