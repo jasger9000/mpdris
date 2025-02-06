@@ -262,10 +262,10 @@ impl PlayerInterface {
             if let Some(artists) = &song.artists {
                 map.insert("xesam:artist", map_vec(artists));
             }
-            if let Some(comment) = &song.comment {
+            if let Some(comment) = &song.comments {
                 map.insert("xesam:comment", map_vec(comment));
             }
-            if let Some(composer) = &song.composer {
+            if let Some(composer) = &song.composers {
                 map.insert("xesam:composer", map_vec(composer));
             }
             if let Some(date) = song.date {
@@ -274,7 +274,7 @@ impl PlayerInterface {
             if let Some(disc) = song.disc {
                 map.insert("xesam:discNumber", disc.into());
             }
-            if let Some(genre) = &song.genre {
+            if let Some(genre) = &song.genres {
                 map.insert("xesam:genre", map_vec(genre));
             }
             if let Some(title) = &song.title {
