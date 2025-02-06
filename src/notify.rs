@@ -3,7 +3,6 @@ use std::{ffi::CString, time::Duration};
 use libc::{c_char, c_int, clock_gettime, timespec, CLOCK_MONOTONIC};
 
 #[link(name = "systemd")]
-#[link(name = "cap")]
 extern "C" {
     /// int sd_notify(int unset_environment, const char *state);
     fn sd_notify(unset_enviroment: c_int, state: *const c_char) -> c_int;
