@@ -251,22 +251,22 @@ impl PlayerInterface {
                 map.insert("mpris:length", (duration.as_micros() as i64).into());
             }
             if let Some(cover) = &song.cover {
-                map.insert("mpris:artUrl", Value::Str(Arc::clone(cover).into()));
+                map.insert("mpris:artUrl", Arc::clone(cover).into());
             }
             if let Some(album) = &song.album {
-                map.insert("xesam:album", Value::Str(Arc::clone(album).into()));
+                map.insert("xesam:album", Arc::clone(album).into());
             }
             if !song.album_artists.is_empty() {
-                map.insert("xesam:albumArtist", map_vec(&song.album_artists));
+                map.insert("xesam:albumArtist", song.album_artists.into_value());
             }
             if !song.artists.is_empty() {
-                map.insert("xesam:artist", map_vec(&song.artists));
+                map.insert("xesam:artist", song.artists.into_value());
             }
             if !song.comments.is_empty() {
-                map.insert("xesam:comment", map_vec(&song.comments));
+                map.insert("xesam:comment", song.comments.into_value());
             }
             if !song.composers.is_empty() {
-                map.insert("xesam:composer", map_vec(&song.composers));
+                map.insert("xesam:composer", song.composers.into_value());
             }
             if let Some(date) = song.date {
                 map.insert("xesam:contentCreated", format!("{date}-01-01T00:00+0000").into());
@@ -275,10 +275,10 @@ impl PlayerInterface {
                 map.insert("xesam:discNumber", disc.into());
             }
             if !song.genres.is_empty() {
-                map.insert("xesam:genre", map_vec(&song.genres));
+                map.insert("xesam:genre", song.genres.into_value());
             }
             if let Some(title) = &song.title {
-                map.insert("xesam:title", Value::Str(Arc::clone(title).into()));
+                map.insert("xesam:title", Arc::clone(title).into());
             }
             if let Some(track) = song.track {
                 map.insert("xesam:trackNumber", track.into());
@@ -372,11 +372,15 @@ impl PlayerInterface {
     }
 }
 
-/// Maps a `Vec<Arc<str>>` to Value::Array for the time being, since Value should really implement
-/// `From<Arc<str>>`. Please see <https://github.com/dbus2/zbus/issues/1234>
-fn map_vec(vec: &[Arc<str>]) -> Value<'static> {
-    vec.iter()
-        .map(|v| Value::Str(Arc::clone(v).into()))
-        .collect::<Vec<_>>()
-        .into()
+trait SliceToValue {
+    fn into_value<'a, 'v>(&'a self) -> Value<'v> where Self: Clone;
 }
+
+/// Why don't we just .clone() the vec? Because then we'd actually create two new vecs, the one we
+/// cloned and the one that the From implementation will create. With this we reduce to one clone
+impl SliceToValue for Vec<Arc<str>> {
+    fn into_value<'a, 'v>(&'a self) -> Value<'v> {
+        Value::Array(self.into())
+    }
+}
+
