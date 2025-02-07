@@ -13,12 +13,15 @@ A lightweight application that implements the media player D-Bus interface [MPRI
 - D-Bus
 - mpd
 - libc
-- systemd
+- gcc-libs
+- (Optional) systemd-libs
+  - To be able to use the `--service` flag you need this dependency.<br />
+    If your system is using systemd it will already be installed for you
 
 ### Compile time
-- systemd-libs
 - cargo
 - libc
+- gcc-libs
 
 ## Installation
 To install this application, you can either...
