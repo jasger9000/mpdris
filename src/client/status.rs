@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use crate::config::config;
 
-use super::MPDResult;
 use super::MPDConnection;
+use super::MPDResult;
 
 #[derive(Debug, Clone)]
 pub struct Status {

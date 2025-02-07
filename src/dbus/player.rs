@@ -6,8 +6,8 @@ use zbus::{
     zvariant::{ObjectPath, Value},
 };
 
-use crate::config::config;
 use crate::client::{MPDClient, PlayState, Repeat, Status};
+use crate::config::config;
 
 use super::{id_to_path, path_to_id};
 
@@ -373,7 +373,9 @@ impl PlayerInterface {
 }
 
 trait SliceToValue {
-    fn into_value<'a, 'v>(&'a self) -> Value<'v> where Self: Clone;
+    fn into_value<'a, 'v>(&'a self) -> Value<'v>
+    where
+        Self: Clone;
 }
 
 /// Why don't we just .clone() the vec? Because then we'd actually create two new vecs, the one we
@@ -383,4 +385,3 @@ impl SliceToValue for Vec<Arc<str>> {
         Value::Array(self.into())
     }
 }
-

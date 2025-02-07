@@ -1,6 +1,6 @@
 mod args;
-mod config;
 mod client;
+mod config;
 mod dbus;
 mod notify;
 
@@ -12,9 +12,9 @@ use std::{env, io, path::PathBuf, process::exit};
 use signal_hook::{consts::TERM_SIGNALS, flag, iterator::Signals, low_level::emulate_default_handler};
 
 use crate::args::Args;
-use crate::config::{config, Config, CONFIG};
 use crate::client::MPDClient;
 use crate::notify::*;
+use crate::config::{config, Config, CONFIG};
 
 #[rustfmt::skip]
 const VERSION_STR: &str = concat!("Running ", env!("CARGO_BIN_NAME"), " v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
