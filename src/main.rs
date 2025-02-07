@@ -13,8 +13,8 @@ use signal_hook::{consts::TERM_SIGNALS, flag, iterator::Signals, low_level::emul
 
 use crate::args::Args;
 use crate::client::MPDClient;
-use crate::notify::*;
 use crate::config::{config, Config, CONFIG};
+use crate::notify::{monotonic_time, Systemd};
 
 #[rustfmt::skip]
 const VERSION_STR: &str = concat!("Running ", env!("CARGO_BIN_NAME"), " v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
@@ -66,8 +66,14 @@ async fn main() {
         .await
         .unwrap_or_else(|err| panic!("Could not serve the dbus interface: {err}"));
 
-    if args.service {
-        notify_systemd("READY=1");
+    let libsystemd = if args.service {
+        Some(Systemd::new().expect("failed to load libsystemd"))
+    } else {
+        None
+    };
+
+    if let Some(libsystemd) = &libsystemd {
+        libsystemd.notify("READY=1");
     }
 
     let handle = signals.handle();
@@ -75,9 +81,9 @@ async fn main() {
         match signal {
             SIGHUP => {
                 println!("Received SIGHUP, reloading config");
-                if args.service {
+                if let Some(libsystemd) = &libsystemd {
                     let time = monotonic_time().as_micros();
-                    notify_systemd(&format!("RELOADING=1\nMONOTONIC_USEC={time}"));
+                    libsystemd.notify(&format!("RELOADING=1\nMONOTONIC_USEC={time}"));
                 }
 
                 match Config::load_config(config_path, &args).await {
@@ -89,8 +95,8 @@ async fn main() {
                             handle.close();
                         });
 
-                        if args.service {
-                            notify_systemd("READY=1");
+                        if let Some(libsystemd) = &libsystemd {
+                            libsystemd.notify("READY=1");
                         }
                         println!("Reload complete!");
                     }
@@ -114,8 +120,8 @@ async fn main() {
         }
     }
 
-    if args.service {
-        notify_systemd("STOPPING=1")
+    if let Some(libsystemd) = &libsystemd {
+        libsystemd.notify("STOPPING=1")
     }
 }
 
