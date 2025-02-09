@@ -33,12 +33,16 @@ To install this application, you can either...
 > [!IMPORTANT]
 > This only works on systems using pacman
 
-> [!NOTE]
-> An actual AUR package is pending
+The package is available on the [AUR](https://aur.archlinux.org/packages/mpdris) or [GitHub](https://github.com/jasger9000/mpDris-aur)<br />
+You can either build the AUR-package yourself, as detailed below, or use your favourite AUR-helper.
 
-1. Clone the AUR package repository:
+**Either way, it is strongly encouraged to read the [PKGBUILD](https://aur.archlinux.org/cgit/aur.git/tree/PKGBUILD?h=mpdris) first.**
+
+#### Build the AUR-package manually
+1. Clone the AUR package repository and cd into the directory:
     ```bash
-    git clone https://gihub.com/jasger9000/mpDris-aur
+    git clone https://aur.archlinux.org/mpdris.git
+    cd mpdris
     ```
 2. Run the build & install command:
     ```bash
