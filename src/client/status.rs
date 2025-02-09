@@ -1,6 +1,6 @@
-use async_std::{channel::Sender, fs::metadata};
+use async_std::channel::Sender;
 use std::mem::replace;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -8,6 +8,8 @@ use crate::config::config;
 
 use super::MPDConnection;
 use super::MPDResult;
+
+const IMG_EXTS: [&str; 10] = ["jpg", "jpeg", "png", "webp", "avif", "jxl", "bmp", "gif", "heif", "heic"];
 
 #[derive(Debug, Clone)]
 pub struct Status {
@@ -107,29 +109,27 @@ impl Song {
 
     async fn try_set_cover_url(&mut self) {
         let base: &str = &config().read().await.music_directory;
+        let paths = {
+            let covers_dir: PathBuf = [base, "covers", &self.uri].iter().collect();
+            let same_dir: PathBuf = [base, &self.uri].iter().collect();
+            let cover_file = same_dir.with_file_name("cover");
 
-        let covers: PathBuf = [base, "covers", &self.uri].iter().collect();
-        let uri: PathBuf = [base, &self.uri].iter().collect();
+            [covers_dir, same_dir, cover_file]
+        };
 
-        async fn check_path(path: &Path) -> Option<Arc<str>> {
-            let img_exts = ["jpg", "jpeg", "png", "webp", "avif", "jxl", "bmp", "gif", "heif", "heic"];
+        for mut path in paths {
+            for ext in IMG_EXTS {
+                path.set_extension(ext);
+                if !path.is_file() {
+                    continue;
+                }
 
-            for ext in img_exts {
-                let path = path.with_extension(ext);
-                if metadata(&path).await.is_ok() {
-                    return Some(format!("file://{}", path.to_str()?).into());
+                if let Some(path) = path.to_str() {
+                    self.cover = Some(format!("file://{path}").into());
+                    return;
                 }
             }
-            None
         }
-
-        self.cover = if let Some(path) = check_path(&covers).await {
-            Some(path)
-        } else if let Some(path) = check_path(&uri).await {
-            Some(path)
-        } else {
-            check_path(&uri.with_file_name("cover")).await
-        };
     }
 
     async fn from_response(value: Vec<(String, String)>) -> Self {
