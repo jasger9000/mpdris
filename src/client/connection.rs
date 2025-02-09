@@ -59,9 +59,15 @@ impl MPDConnection {
         let mut failed_parses: u8 = 0;
 
         loop {
-            self.reader.read_line(&mut buf).await?;
+            let bytes_read = self.reader.read_line(&mut buf).await?;
 
-            if buf.starts_with("OK") {
+            if bytes_read == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "Connection reached EOF without indicator for end of response",
+                )
+                .into());
+            } else if buf.starts_with("OK") {
                 // lines starting with OK indicate the end of response
                 break;
             } else if buf.starts_with("ACK") {
