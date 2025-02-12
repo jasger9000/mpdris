@@ -171,19 +171,14 @@ impl Config {
 }
 
 fn default_music_dir() -> Box<str> {
-    let dir = format!("{}/Music", *HOME_DIR).into_boxed_str();
-    eprintln!("Missing value `music_directory` in config, using default: {dir}");
-    dir
+    format!("{}/Music", *HOME_DIR).into_boxed_str()
 }
 fn default_addr() -> IpAddr {
-    eprintln!("Missing value `addr` in config, using default: {DEFAULT_ADDR}");
     DEFAULT_ADDR
 }
 fn default_port() -> u16 {
-    eprintln!("Missing value `port` in config, using default: {DEFAULT_PORT}");
     DEFAULT_PORT
 }
 fn default_retries() -> isize {
-    eprintln!("Missing value `retries` in config, using default: {DEFAULT_RETRIES}");
     DEFAULT_RETRIES
 }
