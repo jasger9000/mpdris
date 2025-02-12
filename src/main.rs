@@ -2,6 +2,7 @@ mod args;
 mod client;
 mod config;
 mod dbus;
+mod expand;
 mod notify;
 
 use libc::{kill, EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
