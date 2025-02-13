@@ -6,7 +6,7 @@ use std::net::{IpAddr, Ipv4Addr};
 use std::{env, path::Path};
 
 use crate::args::Args;
-use crate::expand::serde_expand_path;
+use crate::util::expand::serde_expand_path;
 use crate::HOME_DIR;
 
 #[derive(Deserialize, Serialize, Debug)]

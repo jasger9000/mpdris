@@ -13,7 +13,7 @@ use libc::SIGTERM;
 use super::error::MPDResult as Result;
 use super::error::{Error, ErrorKind};
 use crate::config::{config, Config};
-use crate::send_sig;
+use crate::util::send_sig;
 
 /// How many bytes MPD sends at once
 const SIZE_LIMIT: usize = 1024;

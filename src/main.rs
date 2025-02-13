@@ -1,21 +1,21 @@
-mod args;
-mod client;
-mod config;
-mod dbus;
-mod expand;
-mod notify;
-
-use libc::{kill, EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
+use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
 use once_cell::sync::Lazy;
 use std::sync::{atomic::AtomicBool, Arc};
-use std::{env, io, path::PathBuf, process::exit};
+use std::{env, io, process::exit};
 
 use signal_hook::{consts::TERM_SIGNALS, flag, iterator::Signals, low_level::emulate_default_handler};
 
 use crate::args::Args;
 use crate::client::MPDClient;
 use crate::config::{config, Config, CONFIG};
-use crate::notify::{monotonic_time, Systemd};
+use util::get_config_path;
+use util::notify::{monotonic_time, Systemd};
+
+mod args;
+mod client;
+mod config;
+mod dbus;
+mod util;
 
 #[rustfmt::skip]
 const VERSION_STR: &str = concat!("Running ", env!("CARGO_BIN_NAME"), " v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
@@ -147,30 +147,4 @@ fn get_signals(is_daemon: bool) -> io::Result<Signals> {
     }
 
     Signals::new(sigs)
-}
-
-/// Sends a signal to the specified PID, uses libc::kill as the underlying implementation
-///
-/// For more information see the libc documentation for kill
-///
-/// # Errors:
-/// [InvalidInput](io::ErrorKind::InvalidInput): An invalid signal was specified.<br />
-/// [PermissionDenied](io::ErrorKind::PermissionDenied): The calling process does not have
-/// permission to send the signal to any of the target processes.<br />
-/// [Uncategorized](io::ErrorKind::Uncategorized): The target process or process group does not exist.
-fn send_sig(pid: u32, signal: i32) -> io::Result<()> {
-    unsafe {
-        if kill(pid as i32, signal) != 0 {
-            Err(io::Error::last_os_error())
-        } else {
-            Ok(())
-        }
-    }
-}
-
-/// Gets the default config path from the enviroment.
-/// Defined as: $XDG_CONFIG_PATH/mpd/mpDris.conf or $HOME/.config/mpd/mpDris.conf
-fn get_config_path() -> PathBuf {
-    let base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{}/.config", *HOME_DIR));
-    [base.as_str(), "mpd", "mpDris.conf"].iter().collect()
 }
