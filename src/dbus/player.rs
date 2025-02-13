@@ -283,8 +283,8 @@ impl PlayerInterface {
 
     #[zbus(property)]
     async fn set_volume(&self, volume: f64) -> zbus::Result<()> {
-        if volume > 100.0 {
-            return Err(fdo::Error::InvalidArgs(String::from("Volume cannot be greater than 100")).into());
+        if volume < 0.0 || volume > 100.0 {
+            return Err(fdo::Error::InvalidArgs(String::from("Volume must be between 0 and 100")).into());
         }
 
         self.mpd.request_data(&format!("setvol {volume:.0}")).await.map_err(|e| {

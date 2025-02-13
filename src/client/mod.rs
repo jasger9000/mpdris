@@ -41,11 +41,13 @@ impl MPDClient {
     }
 
     pub async fn reconnect(&self) -> Result<()> {
-        self.drop_idle_lock.send(()).await.expect("Channel must always be open");
+        let _ = self.drop_idle_lock.send(()).await;
         let (mut c, mut ic) = join(self.connection.lock(), self.idle_connection.lock()).await;
 
         c.reconnect().await?;
-        ic.reconnect().await
+        ic.reconnect().await?;
+        let _ = self.drop_idle_lock.send(()).await;
+        Ok(())
     }
 
     /// Play the song with the given id, returns error if the id is invalid
@@ -162,19 +164,27 @@ async fn idle_task(
     drop_lock: Receiver<()>,
 ) {
     loop {
-        sleep(Duration::from_nanos(1)).await; // necessary to acquire lock in reconnect fn
         let mut conn = connection.lock().await;
+
         let result = {
-            let request = conn.request_data(IDLE_REQUEST);
-            let drop_lock = async {
-                drop_lock.recv().await.expect("Channel must always be open");
+            // we need assign result using coroutine because it is impossible to drop request and therefore the lock on conn
+            let result = {
+                let request = conn.request_data(IDLE_REQUEST);
+                let drp = drop_lock.recv();
+
+                pin_mut!(request, drp);
+                match select(request, drp).await {
+                    Either::Left((res, _)) => Some(res),
+                    Either::Right((_, _)) => None,
+                }
             };
 
-            pin_mut!(request, drop_lock);
-            match select(drop_lock, request).await {
-                Either::Left((_, _)) => continue,
-                Either::Right((res, _)) => res,
+            if result.is_none() {
+                drop(conn);
+                let _ = drop_lock.recv().await;
+                continue;
             }
+            result.unwrap()
         };
 
         match result {
