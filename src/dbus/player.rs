@@ -115,13 +115,10 @@ impl PlayerInterface {
             return Ok(());
         }
 
-        match self.mpd.seek_relative(is_positive, ms).await {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("Failed to seek: {err}");
-                return Err(err.into());
-            }
-        }
+        self.mpd.seek_relative(is_positive, ms).await.map_err(|e| {
+            eprintln!("Failed to seek: {e}");
+            e
+        })?;
 
         Self::seeked(&ctxt, s.elapsed.unwrap_or(Duration::ZERO).add(ms).as_micros() as i64).await?;
 
@@ -151,13 +148,10 @@ impl PlayerInterface {
             return Ok(());
         }
 
-        match self.mpd.seek(pos).await {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("Failed to set position: {err}");
-                return Err(err.into());
-            }
-        }
+        self.mpd.seek(pos).await.map_err(|e| {
+            eprintln!("Failed to set position: {e}");
+            e
+        })?;
 
         Self::seeked(&ctxt, ms).await?;
 
@@ -195,13 +189,10 @@ impl PlayerInterface {
         };
 
         let cmd = format!("command_list_begin\nrepeat {repeat}\nsingle {single}\ncommand_list_end");
-        match self.mpd.request_data(&cmd).await {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("Failed to set loop status: {err}");
-                return Err(err.into());
-            }
-        };
+        self.mpd.request_data(&cmd).await.map_err(|e| {
+            eprintln!("Failed to set loop status: {e}");
+            e
+        })?;
 
         self.status.write().await.repeat = if single == 1 {
             Repeat::Single
@@ -223,13 +214,10 @@ impl PlayerInterface {
     async fn set_shuffle(&self, shuffle: bool) -> zbus::Result<()> {
         let cmd = if shuffle { "random 1" } else { "random 0" };
 
-        match self.mpd.request_data(cmd).await {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("Could not set shuffleing: {err}");
-                return Err(Into::<fdo::Error>::into(err).into());
-            }
-        }
+        self.mpd.request_data(cmd).await.map_err(|e| {
+            eprintln!("Could not set shuffleing: {e}");
+            Into::<fdo::Error>::into(e)
+        })?;
 
         self.status.write().await.shuffle = shuffle;
         Ok(())
@@ -299,13 +287,10 @@ impl PlayerInterface {
             return Err(fdo::Error::InvalidArgs(String::from("Volume cannot be greater than 100")).into());
         }
 
-        match self.mpd.request_data(&format!("setvol {}", volume as u8)).await {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("Could not set volume: {err}");
-                return Err(Into::<fdo::Error>::into(err).into());
-            }
-        }
+        self.mpd.request_data(&format!("setvol {volume:.0}")).await.map_err(|e| {
+            eprintln!("Could not set volume: {e}");
+            Into::<fdo::Error>::into(e)
+        })?;
 
         self.status.write().await.volume = volume as u8;
         Ok(())

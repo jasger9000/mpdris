@@ -78,10 +78,7 @@ impl Config {
             fs::create_dir(file.parent().unwrap()).await?;
         }
 
-        let data = match toml::to_string_pretty(self) {
-            Ok(d) => d,
-            Err(err) => return Err(io::Error::new(io::ErrorKind::InvalidData, err.to_string())),
-        };
+        let data = toml::to_string_pretty(self).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))?;
 
         fs::write(file, data).await?;
 
@@ -133,27 +130,21 @@ impl Config {
     /// Loads values $MPD_HOST and $MPD_PORT from environment
     fn load_from_env_vars(&mut self) -> io::Result<()> {
         if let Ok(addr) = env::var("MPD_HOST") {
-            self.addr = match addr.parse() {
-                Ok(a) => a,
-                Err(_) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "Could not parse the $MPD_HOST environment variable into a host address.",
-                    ))
-                }
-            }
+            self.addr = addr.parse().map_err(|_e| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Could not parse the $MPD_HOST environment variable into a host address.",
+                )
+            })?;
         }
 
         if let Ok(port) = env::var("MPD_PORT") {
-            self.port = match port.parse() {
-                Ok(p) => p,
-                Err(_) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "Could not parse the $MPD_PORT environment variable into an integer.",
-                    ))
-                }
-            }
+            self.port = port.parse().map_err(|_e| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Could not parse the $MPD_PORT environment variable into an integer.",
+                )
+            })?;
         }
 
         Ok(())
@@ -163,29 +154,19 @@ impl Config {
     async fn load_from_file(file: &Path) -> io::Result<Self> {
         let data = fs::read_to_string(file).await?;
 
-        match toml::from_str(&data) {
-            Ok(config) => Ok(config),
-            Err(err) => {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, err.message()));
-            }
-        }
+        toml::from_str::<Config>(&data).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.message()))
     }
 }
 
 fn default_music_dir() -> Box<str> {
-    let dir = format!("{}/Music", *HOME_DIR).into_boxed_str();
-    eprintln!("Missing value `music_directory` in config, using default: {dir}");
-    dir
+    format!("{}/Music", *HOME_DIR).into_boxed_str()
 }
 fn default_addr() -> IpAddr {
-    eprintln!("Missing value `addr` in config, using default: {DEFAULT_ADDR}");
     DEFAULT_ADDR
 }
 fn default_port() -> u16 {
-    eprintln!("Missing value `port` in config, using default: {DEFAULT_PORT}");
     DEFAULT_PORT
 }
 fn default_retries() -> isize {
-    eprintln!("Missing value `retries` in config, using default: {DEFAULT_RETRIES}");
     DEFAULT_RETRIES
 }
