@@ -6,6 +6,7 @@ use std::net::{IpAddr, Ipv4Addr};
 use std::{env, path::Path};
 
 use crate::args::Args;
+use crate::expand::serde_expand_path;
 use crate::HOME_DIR;
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -20,6 +21,7 @@ pub struct Config {
     /// Amount of time to retry to connect
     pub retries: isize,
     #[serde(default = "default_music_dir")]
+    #[serde(deserialize_with = "serde_expand_path")]
     /// The root directory MPD uses to play music
     pub music_directory: Box<str>,
 }
