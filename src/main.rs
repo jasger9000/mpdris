@@ -30,6 +30,8 @@ async fn main() {
         exit(EXIT_SUCCESS);
     }
 
+    util::init_logger(args.level);
+
     // subscribe to signals
     let mut signals = {
         get_signals(args.service).unwrap_or_else(|err| {

@@ -12,6 +12,20 @@ pub fn get_config_path() -> PathBuf {
     [base.as_str(), "mpd", "mpDris.conf"].iter().collect()
 }
 
+pub fn init_logger(level: log::LevelFilter) {
+    use simplelog::format_description;
+
+    let logconf = simplelog::ConfigBuilder::new()
+        .set_target_level(log::LevelFilter::Error)
+        .set_time_format_custom(format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"))
+        .set_time_offset_to_local()
+        .expect("failed to get UTC offset")
+        .build();
+
+    simplelog::TermLogger::init(level, logconf, simplelog::TerminalMode::Mixed, simplelog::ColorChoice::Auto)
+        .expect("failed to set logger");
+}
+
 /// Sends a signal to the specified PID, uses libc::kill as the underlying implementation
 ///
 /// For more information see the libc documentation for kill
