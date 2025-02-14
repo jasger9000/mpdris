@@ -1,3 +1,4 @@
+use async_std::task::block_on;
 use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
@@ -22,8 +23,7 @@ const VERSION_STR: &str = concat!("Running ", env!("CARGO_BIN_NAME"), " v", env!
 static HOME_DIR: Lazy<String> = Lazy::new(|| env::var("HOME").expect("$HOME must be set"));
 
 #[cfg(target_os = "linux")]
-#[async_std::main]
-async fn main() {
+fn main() {
     let args: Args = argh::from_env();
 
     if args.version {
@@ -32,6 +32,11 @@ async fn main() {
     }
 
     util::init_logger(args.level);
+
+    block_on(__main(args))
+}
+
+async fn __main(args: Args) {
     debug!("entered async runtime");
 
     // subscribe to signals
