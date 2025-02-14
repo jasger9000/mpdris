@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use async_std::io::{self, BufReader, BufWriter};
 use async_std::net::TcpStream;
-use async_std::task::sleep;
+use async_std::task::{block_on, sleep};
 
 use const_format::concatcp;
 use futures_util::io::{ReadHalf, WriteHalf};
@@ -146,10 +146,7 @@ impl MPDConnection {
             let (r, w) = Self::connect(c.addr, c.port, c.retries).await.unwrap_or_else(|e| {
                 eprintln!("Failed to reconnect to MPD, exiting: {e}");
                 send_sig(std::process::id(), SIGTERM).expect("should always be able to send signal");
-                loop {
-                    // wait for the signal handler to gracefully shut down
-                    std::thread::sleep(Duration::from_secs(u64::MAX));
-                }
+                block_on(std::future::pending())
             });
 
             self.reader = r;
