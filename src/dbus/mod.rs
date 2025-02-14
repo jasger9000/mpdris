@@ -1,5 +1,6 @@
 use async_std::channel::Receiver;
 use async_std::task::{spawn, JoinHandle};
+use log::warn;
 use std::sync::Arc;
 use zbus::zvariant::ObjectPath;
 use zbus::Connection;
@@ -36,7 +37,7 @@ pub async fn serve(
     let task = spawn(async move {
         loop {
             if let Err(err) = send_signals(&signal_connection, &recv).await {
-                eprintln!("D-Bus Change Signal Sender died, restarting: {err}");
+                warn!("D-Bus Change Signal Sender died, restarting: {err}");
             }
         }
     });

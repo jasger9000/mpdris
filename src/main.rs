@@ -1,4 +1,5 @@
 use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
+use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use std::sync::{atomic::AtomicBool, Arc};
 use std::{env, io, process::exit};
@@ -31,24 +32,25 @@ async fn main() {
     }
 
     util::init_logger(args.level);
+    debug!("entered async runtime");
 
     // subscribe to signals
     let mut signals = {
         get_signals(args.service).unwrap_or_else(|err| {
-            eprintln!("Could not subscribe to signals: {err}");
+            error!("Could not subscribe to signals: {err}");
             exit(EXIT_FAILURE);
         })
     };
 
     {
         let config = Config::load_config(&args.config, &args).await.unwrap_or_else(|err| {
-            eprintln!("Error occurred while trying to load the config: {err}");
+            error!("Error occurred while trying to load the config: {err}");
             exit(EXIT_FAILURE);
         });
 
         if !args.config.is_file() {
             config.write(&args.config).await.unwrap_or_else(|err| {
-                eprintln!("Could not write config file: {err}");
+                warn!("Could not write config file: {err}");
             });
         }
         CONFIG.set(config.into()).expect("CONFIG should not have been written to");
@@ -78,7 +80,7 @@ async fn main() {
     for signal in &mut signals {
         match signal {
             SIGHUP => {
-                println!("Received SIGHUP, reloading config");
+                info!("Received SIGHUP, reloading config");
                 if let Some(libsystemd) = &libsystemd {
                     let time = monotonic_time().as_micros();
                     libsystemd.notify(&format!("RELOADING=1\nMONOTONIC_USEC={time}"));
@@ -89,30 +91,30 @@ async fn main() {
                         *config().write().await = c;
 
                         conn.reconnect().await.unwrap_or_else(|err| {
-                            eprintln!("Could not reconnect to mpd, quitting: {err}");
+                            error!("Could not reconnect to mpd, quitting: {err}");
                             handle.close();
                         });
 
                         if let Some(libsystemd) = &libsystemd {
                             libsystemd.notify("READY=1");
                         }
-                        println!("Reload complete!");
+                        info!("Reload complete!");
                     }
                     Err(err) => {
-                        eprintln!("Could not load config file, continuing with old one: {err}");
+                        warn!("Could not load config file, continuing with old one: {err}");
                     }
                 }
             }
             SIGQUIT => {
-                eprintln!("Received SIGQUIT, dumping core...");
+                info!("Received SIGQUIT, dumping core...");
                 handle.close();
                 emulate_default_handler(SIGQUIT).unwrap_or_else(|err| {
-                    eprintln!("Failed to dump core: {err}");
+                    error!("Failed to dump core: {err}");
                     exit(EXIT_FAILURE);
                 });
             }
             _ => {
-                eprintln!("Received exit signal, quitting...");
+                info!("Received exit signal, quitting...");
                 handle.close();
             }
         }
