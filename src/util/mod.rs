@@ -1,6 +1,9 @@
-use std::{env, io, path::PathBuf};
+use std::{env, io, path::PathBuf, process::exit};
 
 use crate::HOME_DIR;
+
+use libc::EXIT_SUCCESS;
+use log::debug;
 
 pub mod expand;
 pub mod notify;
@@ -41,6 +44,35 @@ pub fn send_sig(pid: u32, signal: i32) -> io::Result<()> {
             Err(io::Error::last_os_error())
         } else {
             Ok(())
+        }
+    }
+}
+
+/// Forks the currently running process, kills the parent,
+/// closes all file descriptors and sets the working directory to /
+pub fn daemonize() {
+    use libc::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
+    use std::cmp::Ordering;
+    debug!("daemonizing");
+
+    unsafe {
+        let pid = libc::fork();
+        match pid.cmp(&0) {
+            Ordering::Less => panic!("Failed to fork the process"),
+            Ordering::Equal => {} // child process
+            Ordering::Greater => exit(EXIT_SUCCESS),
+        }
+
+        if libc::setsid() < 0 {
+            panic!("Failed to create a new session for the daemon");
+        }
+
+        if libc::chdir(c"/".as_ptr()) < 0 {
+            panic!("Failed to change path to root directory");
+        }
+
+        if libc::close(STDIN_FILENO) < 0 || libc::close(STDOUT_FILENO) < 0 || libc::close(STDERR_FILENO) < 0 {
+            panic!("Failed to close one of the file descriptors stdin, stdout, stderr");
         }
     }
 }

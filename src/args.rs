@@ -26,6 +26,9 @@ pub struct Args {
     /// the logging level to use. May be one of: trace, debug, info, warn, error
     #[argh(option, default = "log::LevelFilter::Info")]
     pub level: LevelFilter,
+    /// when set, will try to fork into a daemon upon launch
+    #[argh(switch)]
+    pub daemon: bool,
     /// when set, acts as a daemon without forking the process
     #[argh(switch)]
     pub service: bool,

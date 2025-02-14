@@ -31,7 +31,14 @@ fn main() {
         exit(EXIT_SUCCESS);
     }
 
-    util::init_logger(args.level);
+    // there's no reason to init the logger if we close stdin & stdout
+    if !args.daemon || args.service {
+        util::init_logger(args.level);
+    }
+
+    if args.daemon && !args.service {
+        util::daemonize();
+    }
 
     block_on(__main(args))
 }
@@ -41,7 +48,7 @@ async fn __main(args: Args) {
 
     // subscribe to signals
     let mut signals = {
-        get_signals(args.service).unwrap_or_else(|err| {
+        get_signals(args.service || args.daemon).unwrap_or_else(|err| {
             error!("Could not subscribe to signals: {err}");
             exit(EXIT_FAILURE);
         })
