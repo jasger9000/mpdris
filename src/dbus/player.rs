@@ -1,4 +1,5 @@
 use async_std::sync::RwLock;
+use log::{error, warn};
 use std::{collections::HashMap, ops::Add, sync::Arc, time::Duration};
 use zbus::{
     fdo, interface,
@@ -30,12 +31,12 @@ impl PlayerInterface {
 
         if let Some(next_id) = s.next_song {
             self.mpd.play_song(next_id).await.map_err(|err| {
-                eprintln!("Failed to switch to next song: {err}");
+                error!("Failed to switch to next song: {err}");
                 err.into()
             })
         } else if s.repeat == Repeat::Off {
             self.mpd.pause().await.map_err(|err| {
-                eprintln!("Failed to pause playback because of empty playlist after next: {err}");
+                warn!("Failed to pause playback because of empty playlist after next: {err}");
                 err.into()
             })
         } else {
@@ -56,13 +57,13 @@ impl PlayerInterface {
             match self.mpd.request_data(cmd).await {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    eprintln!("Failed to switch to previous song: {err}");
+                    error!("Failed to switch to previous song: {err}");
                     Err(err.into())
                 }
             }
         } else if s.playlist_length <= 1 && s.repeat == Repeat::Off {
             self.mpd.stop().await.map_err(|err| {
-                eprintln!("Failed to pause playback because of empty playlist after previous: {err}");
+                error!("Failed to pause playback because of empty playlist after previous: {err}");
                 err.into()
             })
         } else {
@@ -72,7 +73,7 @@ impl PlayerInterface {
 
     async fn pause(&mut self) -> fdo::Result<()> {
         self.mpd.pause().await.map_err(|err| {
-            eprintln!("Failed to pause playback: {err}");
+            error!("Failed to pause playback: {err}");
             err.into()
         })
     }
@@ -85,21 +86,21 @@ impl PlayerInterface {
         }
 
         self.mpd.toggle_play().await.map_err(|err| {
-            eprintln!("Failed to toggle playback: {err}");
+            error!("Failed to toggle playback: {err}");
             err.into()
         })
     }
 
     async fn stop(&mut self) -> fdo::Result<()> {
         self.mpd.stop().await.map_err(|err| {
-            eprintln!("Failed to stop playback: {err}");
+            error!("Failed to stop playback: {err}");
             err.into()
         })
     }
 
     async fn play(&mut self) -> fdo::Result<()> {
         self.mpd.play().await.map_err(|err| {
-            eprintln!("Failed to start playback: {err}");
+            error!("Failed to start playback: {err}");
             err.into()
         })
     }
@@ -116,7 +117,7 @@ impl PlayerInterface {
         }
 
         self.mpd.seek_relative(is_positive, ms).await.map_err(|e| {
-            eprintln!("Failed to seek: {e}");
+            error!("Failed to seek: {e}");
             e
         })?;
 
@@ -149,7 +150,7 @@ impl PlayerInterface {
         }
 
         self.mpd.seek(pos).await.map_err(|e| {
-            eprintln!("Failed to set position: {e}");
+            error!("Failed to set position: {e}");
             e
         })?;
 
@@ -190,7 +191,7 @@ impl PlayerInterface {
 
         let cmd = format!("command_list_begin\nrepeat {repeat}\nsingle {single}\ncommand_list_end");
         self.mpd.request_data(&cmd).await.map_err(|e| {
-            eprintln!("Failed to set loop status: {e}");
+            error!("Failed to set loop status: {e}");
             e
         })?;
 
@@ -215,7 +216,7 @@ impl PlayerInterface {
         let cmd = if shuffle { "random 1" } else { "random 0" };
 
         self.mpd.request_data(cmd).await.map_err(|e| {
-            eprintln!("Could not set shuffleing: {e}");
+            error!("Could not set shuffleing: {e}");
             Into::<fdo::Error>::into(e)
         })?;
 
@@ -270,7 +271,7 @@ impl PlayerInterface {
         }
 
         self.mpd.request_data(&format!("setvol {volume:.0}")).await.map_err(|e| {
-            eprintln!("Could not set volume: {e}");
+            error!("Could not set volume: {e}");
             Into::<fdo::Error>::into(e)
         })?;
 

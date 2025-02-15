@@ -1,6 +1,9 @@
-use std::{env, io, path::PathBuf};
+use std::{env, io, path::PathBuf, process::exit};
 
 use crate::HOME_DIR;
+
+use libc::EXIT_SUCCESS;
+use log::debug;
 
 pub mod expand;
 pub mod notify;
@@ -10,6 +13,20 @@ pub mod notify;
 pub fn get_config_path() -> PathBuf {
     let base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{}/.config", *HOME_DIR));
     [base.as_str(), "mpd", "mpDris.conf"].iter().collect()
+}
+
+pub fn init_logger(level: log::LevelFilter) {
+    use simplelog::format_description;
+
+    let logconf = simplelog::ConfigBuilder::new()
+        .set_target_level(log::LevelFilter::Error)
+        .set_time_format_custom(format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"))
+        .set_time_offset_to_local()
+        .expect("failed to get UTC offset")
+        .build();
+
+    simplelog::TermLogger::init(level, logconf, simplelog::TerminalMode::Mixed, simplelog::ColorChoice::Auto)
+        .expect("failed to set logger");
 }
 
 /// Sends a signal to the specified PID, uses libc::kill as the underlying implementation
@@ -27,6 +44,35 @@ pub fn send_sig(pid: u32, signal: i32) -> io::Result<()> {
             Err(io::Error::last_os_error())
         } else {
             Ok(())
+        }
+    }
+}
+
+/// Forks the currently running process, kills the parent,
+/// closes all file descriptors and sets the working directory to /
+pub fn daemonize() {
+    use libc::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
+    use std::cmp::Ordering;
+    debug!("daemonizing");
+
+    unsafe {
+        let pid = libc::fork();
+        match pid.cmp(&0) {
+            Ordering::Less => panic!("Failed to fork the process"),
+            Ordering::Equal => {} // child process
+            Ordering::Greater => exit(EXIT_SUCCESS),
+        }
+
+        if libc::setsid() < 0 {
+            panic!("Failed to create a new session for the daemon");
+        }
+
+        if libc::chdir(c"/".as_ptr()) < 0 {
+            panic!("Failed to change path to root directory");
+        }
+
+        if libc::close(STDIN_FILENO) < 0 || libc::close(STDOUT_FILENO) < 0 || libc::close(STDERR_FILENO) < 0 {
+            panic!("Failed to close one of the file descriptors stdin, stdout, stderr");
         }
     }
 }

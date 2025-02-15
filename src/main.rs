@@ -1,4 +1,6 @@
+use async_std::task::block_on;
 use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
+use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use std::sync::{atomic::AtomicBool, Arc};
 use std::{env, io, process::exit};
@@ -8,7 +10,6 @@ use signal_hook::{consts::TERM_SIGNALS, flag, iterator::Signals, low_level::emul
 use crate::args::Args;
 use crate::client::MPDClient;
 use crate::config::{config, Config, CONFIG};
-use util::get_config_path;
 use util::notify::{monotonic_time, Systemd};
 
 mod args;
@@ -22,36 +23,46 @@ const VERSION_STR: &str = concat!("Running ", env!("CARGO_BIN_NAME"), " v", env!
 static HOME_DIR: Lazy<String> = Lazy::new(|| env::var("HOME").expect("$HOME must be set"));
 
 #[cfg(target_os = "linux")]
-#[async_std::main]
-async fn main() {
+fn main() {
     let args: Args = argh::from_env();
 
-    let config_path = match &args.config {
-        Some(c) => c,
-        None => &get_config_path(),
-    };
     if args.version {
         println!("{}", VERSION_STR);
         exit(EXIT_SUCCESS);
     }
 
+    // there's no reason to init the logger if we close stdin & stdout
+    if !args.daemon || args.service {
+        util::init_logger(args.level);
+    }
+
+    if args.daemon && !args.service {
+        util::daemonize();
+    }
+
+    block_on(__main(args))
+}
+
+async fn __main(args: Args) {
+    debug!("entered async runtime");
+
     // subscribe to signals
     let mut signals = {
-        get_signals(args.service).unwrap_or_else(|err| {
-            eprintln!("Could not subscribe to signals: {err}");
+        get_signals(args.service || args.daemon).unwrap_or_else(|err| {
+            error!("Could not subscribe to signals: {err}");
             exit(EXIT_FAILURE);
         })
     };
 
     {
-        let config = Config::load_config(config_path, &args).await.unwrap_or_else(|err| {
-            eprintln!("Error occurred while trying to load the config: {err}");
+        let config = Config::load_config(&args.config, &args).await.unwrap_or_else(|err| {
+            error!("Error occurred while trying to load the config: {err}");
             exit(EXIT_FAILURE);
         });
 
-        if !config_path.is_file() {
-            config.write(config_path).await.unwrap_or_else(|err| {
-                eprintln!("Could not write config file: {err}");
+        if !args.config.is_file() {
+            config.write(&args.config).await.unwrap_or_else(|err| {
+                warn!("Could not write config file: {err}");
             });
         }
         CONFIG.set(config.into()).expect("CONFIG should not have been written to");
@@ -81,41 +92,41 @@ async fn main() {
     for signal in &mut signals {
         match signal {
             SIGHUP => {
-                println!("Received SIGHUP, reloading config");
+                info!("Received SIGHUP, reloading config");
                 if let Some(libsystemd) = &libsystemd {
                     let time = monotonic_time().as_micros();
                     libsystemd.notify(&format!("RELOADING=1\nMONOTONIC_USEC={time}"));
                 }
 
-                match Config::load_config(config_path, &args).await {
+                match Config::load_config(&args.config, &args).await {
                     Ok(c) => {
                         *config().write().await = c;
 
                         conn.reconnect().await.unwrap_or_else(|err| {
-                            eprintln!("Could not reconnect to mpd, quitting: {err}");
+                            error!("Could not reconnect to mpd, quitting: {err}");
                             handle.close();
                         });
 
                         if let Some(libsystemd) = &libsystemd {
                             libsystemd.notify("READY=1");
                         }
-                        println!("Reload complete!");
+                        info!("Reload complete!");
                     }
                     Err(err) => {
-                        eprintln!("Could not load config file, continuing with old one: {err}");
+                        warn!("Could not load config file, continuing with old one: {err}");
                     }
                 }
             }
             SIGQUIT => {
-                eprintln!("Received SIGQUIT, dumping core...");
+                info!("Received SIGQUIT, dumping core...");
                 handle.close();
                 emulate_default_handler(SIGQUIT).unwrap_or_else(|err| {
-                    eprintln!("Failed to dump core: {err}");
+                    error!("Failed to dump core: {err}");
                     exit(EXIT_FAILURE);
                 });
             }
             _ => {
-                eprintln!("Received exit signal, quitting...");
+                info!("Received exit signal, quitting...");
                 handle.close();
             }
         }

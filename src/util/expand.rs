@@ -1,5 +1,6 @@
 use std::env;
 
+use log::warn;
 use serde::{Deserialize, Deserializer};
 
 use crate::HOME_DIR;
@@ -69,7 +70,7 @@ pub fn expand_path(str: &str) -> String {
                 }
             }
             Err(_e) => {
-                eprintln!("encountered undefined environment variable: {varname}");
+                warn!("encountered undefined environment variable: {varname}");
                 ret.reserve(varname.len() + 1);
                 ret.push('$');
                 ret.push_str(varname);

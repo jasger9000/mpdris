@@ -1,4 +1,5 @@
 use async_std::{fs, io, sync::RwLock};
+use log::{info, warn};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -66,13 +67,13 @@ impl Config {
     /// - PermissionDenied if the process lacks the permission to write to the directory/file
     /// - Some other I/O error further specified in [fs::create_dir] or [fs::write]
     pub async fn write(&self, file: &Path) -> io::Result<()> {
-        println!("Writing config file to `{}`", file.to_string_lossy());
+        info!("Writing config file to `{}`", file.to_string_lossy());
         if !file
             .parent()
             .ok_or(io::Error::new(io::ErrorKind::InvalidInput, "Path invalid"))?
             .exists()
         {
-            eprintln!("Could not find parent dir, Creating...");
+            warn!("Could not find parent dir, Creating...");
 
             // Why not `create_dir_all`? Because if $HOME/.config does not exist, there's something majorly wrong with the user I don't want to handle
             fs::create_dir(file.parent().unwrap()).await?;
@@ -104,7 +105,7 @@ impl Config {
         let mut config = if file.exists() {
             Self::load_from_file(file).await?
         } else {
-            eprintln!("Could not find config file, using default values instead");
+            warn!("Could not find config file, using default values instead");
             Self::new()
         };
 

@@ -3,12 +3,13 @@ use std::time::Duration;
 
 use async_std::io::{self, BufReader, BufWriter};
 use async_std::net::TcpStream;
-use async_std::task::sleep;
+use async_std::task::{block_on, sleep};
 
 use const_format::concatcp;
 use futures_util::io::{ReadHalf, WriteHalf};
 use futures_util::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use libc::SIGTERM;
+use log::{debug, error, info, warn};
 
 use super::error::MPDResult as Result;
 use super::error::{Error, ErrorKind};
@@ -37,7 +38,7 @@ impl MPDConnection {
         match self.request_data_in(request).await {
             Ok(ok) => Ok(ok),
             Err(err) => {
-                eprintln!("Failed to read from MPD connection, reconnecting: {err}");
+                warn!("Failed to read from MPD connection, reconnecting: {err}");
                 self.reconnect().await?;
                 self.request_data_in(request).await
             }
@@ -80,7 +81,7 @@ impl MPDConnection {
                 data.push((k.to_string(), v.trim().to_string()));
             } else {
                 failed_parses += 1;
-                eprintln!("Could not split response line into key-value pair (failed parses {failed_parses})");
+                warn!("Could not split response line into key-value pair (failed parses {failed_parses})");
                 if failed_parses >= 3 {
                     return Err(Error::new_string(
                         ErrorKind::KeyValueError,
@@ -97,7 +98,7 @@ impl MPDConnection {
 
     async fn after_connect(&mut self) -> Result<()> {
         self.read_data().await?;
-        println!("Setting binary output limit to {SIZE_LIMIT} bytes");
+        debug!("Setting binary output limit to {SIZE_LIMIT} bytes");
         self.request_data_in(concatcp!("binarylimit ", SIZE_LIMIT)).await?;
 
         Ok(())
@@ -116,22 +117,22 @@ impl MPDConnection {
                 Ok(stream) => {
                     let (r, w) = stream.split();
 
-                    println!("Connection established");
+                    info!("Connection established");
                     return Ok((BufReader::new(r), BufWriter::new(w)));
                 }
                 Err(err) => {
                     if retries > 0 {
-                        eprintln!("Could not connect (tries left {}): {err}", retries - attempts);
+                        warn!("Could not connect (tries left {}): {err}", retries - attempts);
 
                         attempts += 1;
                         if attempts > retries {
                             return Err(err);
                         }
                     } else {
-                        eprintln!("Could not connect: {err}");
+                        error!("Could not connect: {err}");
                     }
 
-                    eprintln!("Retrying in 3 seconds");
+                    debug!("Retrying in 3 seconds");
                     sleep(Duration::from_secs(3)).await;
                 }
             }
@@ -142,14 +143,11 @@ impl MPDConnection {
         {
             let c = config().read().await;
 
-            println!("Reconnecting to server on ip-address: {} using port: {}", c.addr, c.port);
+            info!("Reconnecting to server on ip-address: {} using port: {}", c.addr, c.port);
             let (r, w) = Self::connect(c.addr, c.port, c.retries).await.unwrap_or_else(|e| {
-                eprintln!("Failed to reconnect to MPD, exiting: {e}");
+                error!("Failed to reconnect to MPD, exiting: {e}");
                 send_sig(std::process::id(), SIGTERM).expect("should always be able to send signal");
-                loop {
-                    // wait for the signal handler to gracefully shut down
-                    std::thread::sleep(Duration::from_secs(u64::MAX));
-                }
+                block_on(std::future::pending())
             });
 
             self.reader = r;

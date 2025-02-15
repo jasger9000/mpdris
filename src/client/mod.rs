@@ -6,6 +6,7 @@ use async_std::task::{sleep, spawn, JoinHandle};
 
 use futures_util::future::{join, select, Either};
 use futures_util::pin_mut;
+use log::{info, warn};
 
 use self::connection::MPDConnection;
 pub use self::error::MPDResult as Result;
@@ -123,13 +124,13 @@ impl MPDClient {
     pub async fn new() -> Result<(Self, Receiver<StateChanged>)> {
         let c = config().read().await;
 
-        println!("Connecting to server on ip-address: {} using port: {}", c.addr, c.port);
+        info!("Connecting to server on ip-address: {} using port: {}", c.addr, c.port);
 
         let (sender, recv) = unbounded();
         let status = Arc::new(RwLock::new(Status::new()));
         let connection = Arc::new(Mutex::new(MPDConnection::new(&c).await?));
 
-        println!("Connecting second stream to ask for updates");
+        info!("Connecting second stream to ask for updates");
         let idle_connection = Arc::new(Mutex::new(MPDConnection::new(&c).await?));
         let (drop_idle_lock, drop_lock) = bounded(1);
 
@@ -201,12 +202,12 @@ async fn idle_task(
                         }
                     }
                     Err(err) => {
-                        eprintln!("Could not update status: {err}");
+                        log::error!("Could not update status: {err}");
                     }
                 }
             }
             Err(err) => {
-                eprintln!("Error while awaiting change in MPD: {err}");
+                warn!("Error while awaiting change in MPD: {err}");
                 continue;
             }
         }
@@ -220,7 +221,7 @@ async fn ping_task(connection: Arc<Mutex<MPDConnection>>) {
         match conn.request_data("ping").await {
             Ok(_) => {}
             Err(err) => {
-                eprintln!("Could not ping MPD: {err}");
+                warn!("Could not ping MPD: {err}");
             }
         };
         drop(conn);
