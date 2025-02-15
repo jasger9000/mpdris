@@ -234,43 +234,25 @@ impl PlayerInterface {
         if let Some(song) = &s.current_song {
             map.insert("mpris:trackid", id_to_path(song.id).into());
             map.insert("xesam:url", format!("file://{}/{}", music_dir, song.uri).into());
+            let m = &mut map;
 
             if let Some(duration) = s.duration {
-                map.insert("mpris:length", (duration.as_micros() as i64).into());
-            }
-            if let Some(cover) = &song.cover {
-                map.insert("mpris:artUrl", Arc::clone(cover).into());
-            }
-            if let Some(album) = &song.album {
-                map.insert("xesam:album", Arc::clone(album).into());
-            }
-            if !song.album_artists.is_empty() {
-                map.insert("xesam:albumArtist", song.album_artists.into_value());
-            }
-            if !song.artists.is_empty() {
-                map.insert("xesam:artist", song.artists.into_value());
-            }
-            if !song.comments.is_empty() {
-                map.insert("xesam:comment", song.comments.into_value());
-            }
-            if !song.composers.is_empty() {
-                map.insert("xesam:composer", song.composers.into_value());
+                m.insert("mpris:length", (duration.as_micros() as i64).into());
             }
             if let Some(date) = song.date {
-                map.insert("xesam:contentCreated", format!("{date}-01-01T00:00+0000").into());
+                m.insert("xesam:contentCreated", format!("{date}-01-01T00:00+0000").into());
             }
-            if let Some(disc) = song.disc {
-                map.insert("xesam:discNumber", disc.into());
-            }
-            if !song.genres.is_empty() {
-                map.insert("xesam:genre", song.genres.into_value());
-            }
-            if let Some(title) = &song.title {
-                map.insert("xesam:title", Arc::clone(title).into());
-            }
-            if let Some(track) = song.track {
-                map.insert("xesam:trackNumber", track.into());
-            }
+
+            add_if_some(m, "mpris:artUrl", &song.cover);
+            add_if_some(m, "xesam:album", &song.album);
+            add_if_some(m, "xesam:discNumber", &song.disc);
+            add_if_some(m, "xesam:title", &song.title);
+            add_if_some(m, "xesam:trackNumber", &song.track);
+            add_if_not_empty(m, "xesam:artist", &song.artists);
+            add_if_not_empty(m, "xesam:albumArtist", &song.album_artists);
+            add_if_not_empty(m, "xesam:comment", &song.comments);
+            add_if_not_empty(m, "xesam:composer", &song.composers);
+            add_if_not_empty(m, "xesam:genre", &song.genres);
         }
 
         map
@@ -283,7 +265,7 @@ impl PlayerInterface {
 
     #[zbus(property)]
     async fn set_volume(&self, volume: f64) -> zbus::Result<()> {
-        if volume < 0.0 || volume > 100.0 {
+        if !(0.0..=100.0).contains(&volume) {
             return Err(fdo::Error::InvalidArgs(String::from("Volume must be between 0 and 100")).into());
         }
 
@@ -357,16 +339,20 @@ impl PlayerInterface {
     }
 }
 
-trait SliceToValue {
-    fn into_value<'a, 'v>(&'a self) -> Value<'v>
-    where
-        Self: Clone;
+fn add_if_some<'k, 'v, T>(map: &mut HashMap<&'k str, Value<'v>>, k: &'k str, v: &Option<T>)
+where
+    T: Into<Value<'v>> + Clone,
+{
+    if let Some(value) = v {
+        map.insert(k, value.clone().into());
+    }
 }
 
-/// Why don't we just .clone() the vec? Because then we'd actually create two new vecs, the one we
-/// cloned and the one that the From implementation will create. With this we reduce to one clone
-impl SliceToValue for Vec<Arc<str>> {
-    fn into_value<'a, 'v>(&'a self) -> Value<'v> {
-        Value::Array(self.into())
+fn add_if_not_empty<'k, 'v, T>(map: &mut HashMap<&'k str, Value<'v>>, k: &'k str, v: &[T])
+where
+    T: zbus::zvariant::Type + Into<Value<'v>> + Clone,
+{
+    if !v.is_empty() {
+        map.insert(k, Value::Array(v.into()));
     }
 }
