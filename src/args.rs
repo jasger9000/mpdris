@@ -1,6 +1,8 @@
 use argh::FromArgs;
 use std::{net::IpAddr, path::PathBuf};
 
+use crate::util::get_config_path;
+
 /// A client implementing the dbus MPRIS standard for mpd
 #[derive(FromArgs)]
 #[argh(help_triggers("-h", "--help"))]
@@ -18,8 +20,8 @@ pub struct Args {
     #[argh(option, short = 'r')]
     pub retries: Option<isize>,
     /// path to config file to use instead of the default
-    #[argh(option)]
-    pub config: Option<PathBuf>,
+    #[argh(option, default = "get_config_path()")]
+    pub config: PathBuf,
     /// when set, acts as a daemon without forking the process
     #[argh(switch)]
     pub service: bool,

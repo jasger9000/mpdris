@@ -8,7 +8,6 @@ use signal_hook::{consts::TERM_SIGNALS, flag, iterator::Signals, low_level::emul
 use crate::args::Args;
 use crate::client::MPDClient;
 use crate::config::{config, Config, CONFIG};
-use util::get_config_path;
 use util::notify::{monotonic_time, Systemd};
 
 mod args;
@@ -26,10 +25,6 @@ static HOME_DIR: Lazy<String> = Lazy::new(|| env::var("HOME").expect("$HOME must
 async fn main() {
     let args: Args = argh::from_env();
 
-    let config_path = match &args.config {
-        Some(c) => c,
-        None => &get_config_path(),
-    };
     if args.version {
         println!("{}", VERSION_STR);
         exit(EXIT_SUCCESS);
@@ -44,13 +39,13 @@ async fn main() {
     };
 
     {
-        let config = Config::load_config(config_path, &args).await.unwrap_or_else(|err| {
+        let config = Config::load_config(&args.config, &args).await.unwrap_or_else(|err| {
             eprintln!("Error occurred while trying to load the config: {err}");
             exit(EXIT_FAILURE);
         });
 
-        if !config_path.is_file() {
-            config.write(config_path).await.unwrap_or_else(|err| {
+        if !args.config.is_file() {
+            config.write(&args.config).await.unwrap_or_else(|err| {
                 eprintln!("Could not write config file: {err}");
             });
         }
@@ -87,7 +82,7 @@ async fn main() {
                     libsystemd.notify(&format!("RELOADING=1\nMONOTONIC_USEC={time}"));
                 }
 
-                match Config::load_config(config_path, &args).await {
+                match Config::load_config(&args.config, &args).await {
                     Ok(c) => {
                         *config().write().await = c;
 
