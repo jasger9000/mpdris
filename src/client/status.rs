@@ -108,12 +108,13 @@ impl Song {
     }
 
     async fn try_set_cover_url(&mut self) {
-        let base = &config().read().await.music_directory;
         debug!("searching cover for '{}'", self.uri);
 
         let paths = {
-            let covers_dir = base.join("covers").join(&*self.uri);
-            let same_dir = base.join(&*self.uri);
+            let c = config().read().await;
+
+            let covers_dir = c.cover_directory.join(&*self.uri);
+            let same_dir = c.music_directory.join(&*self.uri);
             let cover_file = same_dir.with_file_name("cover");
 
             [covers_dir, same_dir, cover_file]
