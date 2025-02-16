@@ -5,8 +5,8 @@ use serde::{Deserialize, Deserializer};
 
 use crate::HOME_DIR;
 
-pub fn serde_expand_path<'de, D: Deserializer<'de>>(de: D) -> Result<Box<str>, D::Error> {
-    Ok(expand_path(&String::deserialize(de)?).into_boxed_str())
+pub fn serde_expand_path<'de, D: Deserializer<'de>, T: From<String>>(de: D) -> Result<T, D::Error> {
+    Ok(expand_path(&String::deserialize(de)?).into())
 }
 
 pub fn expand_path(str: &str) -> String {
