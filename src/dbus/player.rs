@@ -229,12 +229,13 @@ impl PlayerInterface {
         let s = self.status.read().await;
         let c = config().read().await;
 
-        let music_dir: &str = &c.music_directory;
         let mut map = HashMap::new();
 
         if let Some(song) = &s.current_song {
+            let song_url = format!("file://{}", c.music_directory.join(&*song.uri).display());
+
             map.insert("mpris:trackid", id_to_path(song.id).into());
-            map.insert("xesam:url", format!("file://{}/{}", music_dir, song.uri).into());
+            map.insert("xesam:url", song_url.into());
             let m = &mut map;
 
             if let Some(duration) = s.duration {

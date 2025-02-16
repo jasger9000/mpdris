@@ -1,6 +1,6 @@
 use async_std::channel::Sender;
+use log::debug;
 use std::mem::replace;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -108,28 +108,35 @@ impl Song {
     }
 
     async fn try_set_cover_url(&mut self) {
-        let base: &str = &config().read().await.music_directory;
+        debug!("searching cover for '{}'", self.uri);
+
         let paths = {
-            let covers_dir: PathBuf = [base, "covers", &self.uri].iter().collect();
-            let same_dir: PathBuf = [base, &self.uri].iter().collect();
+            let c = config().read().await;
+
+            let covers_dir = c.cover_directory.join(&*self.uri);
+            let same_dir = c.music_directory.join(&*self.uri);
             let cover_file = same_dir.with_file_name("cover");
 
             [covers_dir, same_dir, cover_file]
         };
 
         for mut path in paths {
+            debug!("searching path '{}' for cover", path.display());
+
             for ext in IMG_EXTS {
                 path.set_extension(ext);
                 if !path.is_file() {
                     continue;
                 }
 
-                if let Some(path) = path.to_str() {
-                    self.cover = Some(format!("file://{path}").into());
-                    return;
-                }
+                let path = path.display();
+                debug!("found cover '{path}'");
+                self.cover = Some(format!("file://{path}").into());
+                return;
             }
         }
+
+        debug!("no cover found");
     }
 
     async fn from_response(value: Vec<(String, String)>) -> Self {

@@ -93,21 +93,28 @@ The config file has the following options:
 - port: The port mpDris uses to connect to MPD (default: 6600)
 - retries: Defines the amount of times mpDris retries to establish a connection to MPD (default: 3)
 - music_directory: The directory in which MPD searches for Music (default: `~/Music`)
+- cover_directory: The dedicated directory to where your covers are stored. (default: `~/Music/covers`)
 
-The `music_directory` is primarily used to search for covers, as detailed below:
+### cover_directory
+This directory will be searched for image files that correspond to the currently playing song to display as cover art.
+
+#### Example:
+Let's say you have a user who stores their Music in `~/Music` and set their `cover_directory` to be in `~/Music/Pictures/songcovers`.
+If they now play the song `Resurrections.mp3` located in `~/Music/Celeste`,
+mpDris will search in `~/Pictures/songcovers/Celeste/` for a file named Resurrections with one of the following file extensions:
+`jpg`, `jpeg`, `png`, `webp`, `avif`, `jxl`, `bmp`, `gif`, `heif` and `heic`.
+
+### music_directory
+Like cover_directory, this directory can also be used to find covers.
 MpDris will search the following paths for song covers, using the first one it finds:
-- `$music_directory/covers/$song_path/$filename.$ext`
 - `$music_directory/$song_path/$filename.$ext`
 - `$music_directory/$song_path/cover.$ext`
 
-where `$music_directory` is the config value, `$song_path` the path up to the song from `$music_directory`, `$filename` the underlying filename of the song and `$ext` an image extension.
-Currently, supported image extensions are: `jpg`, `jpeg`, `png`, `webp`, `avif`, `jxl`, `bmp`, `gif`, `heif` and `heic`
+where `$song_path` the path up to the song from `$music_directory`, `$filename` the underlying filename of the song and
+`$ext` one of the image extensions listed under cover_directory.
 
 #### Example
 If you have the song `Resurrections.mp3` in `/home/johndoe/Music/Celeste/`, mpDris will search for a cover like this:
-- `/home/johndoe/Music/covers/Celeste/Resurrections.jpg`
-- `/home/johndoe/Music/covers/Celeste/Resurrections.png`<br />
-...
 - `/home/johndoe/Music/Celeste/Resurrections.jpg`
 - `/home/johndoe/Music/Celeste/Resurrections.png`<br />
 ...

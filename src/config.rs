@@ -4,7 +4,7 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use std::net::{IpAddr, Ipv4Addr};
-use std::{env, path::Path};
+use std::{env, path::Path, path::PathBuf};
 
 use crate::args::Args;
 use crate::util::expand::serde_expand_path;
@@ -24,7 +24,11 @@ pub struct Config {
     #[serde(default = "default_music_dir")]
     #[serde(deserialize_with = "serde_expand_path")]
     /// The root directory MPD uses to play music
-    pub music_directory: Box<str>,
+    pub music_directory: PathBuf,
+    #[serde(default = "default_cover_dir")]
+    #[serde(deserialize_with = "serde_expand_path")]
+    /// The dedicated root directory mpdris uses to search for covers
+    pub cover_directory: PathBuf,
 }
 
 impl Default for Config {
@@ -53,6 +57,7 @@ impl Config {
             port: DEFAULT_PORT,
             retries: DEFAULT_RETRIES,
             music_directory: default_music_dir(),
+            cover_directory: default_cover_dir(),
         }
     }
 
@@ -159,8 +164,11 @@ impl Config {
     }
 }
 
-fn default_music_dir() -> Box<str> {
-    format!("{}/Music", *HOME_DIR).into_boxed_str()
+fn default_music_dir() -> PathBuf {
+    [&HOME_DIR, "Music"].iter().collect()
+}
+fn default_cover_dir() -> PathBuf {
+    [&HOME_DIR, "Music", "covers"].iter().collect()
 }
 fn default_addr() -> IpAddr {
     DEFAULT_ADDR
