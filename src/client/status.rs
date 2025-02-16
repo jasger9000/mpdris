@@ -1,4 +1,5 @@
 use async_std::channel::Sender;
+use log::debug;
 use std::mem::replace;
 use std::sync::Arc;
 use std::time::Duration;
@@ -108,6 +109,8 @@ impl Song {
 
     async fn try_set_cover_url(&mut self) {
         let base = &config().read().await.music_directory;
+        debug!("searching cover for '{}'", self.uri);
+
         let paths = {
             let covers_dir = base.join("covers").join(&*self.uri);
             let same_dir = base.join(&*self.uri);
@@ -117,6 +120,8 @@ impl Song {
         };
 
         for mut path in paths {
+            debug!("searching path '{}' for cover", path.display());
+
             for ext in IMG_EXTS {
                 path.set_extension(ext);
                 if !path.is_file() {
@@ -124,10 +129,13 @@ impl Song {
                 }
 
                 let path = path.display();
+                debug!("found cover '{path}'");
                 self.cover = Some(format!("file://{path}").into());
                 return;
             }
         }
+
+        debug!("no cover found");
     }
 
     async fn from_response(value: Vec<(String, String)>) -> Self {
