@@ -123,10 +123,9 @@ impl Song {
                     continue;
                 }
 
-                if let Some(path) = path.to_str() {
-                    self.cover = Some(format!("file://{path}").into());
-                    return;
-                }
+                let path = path.display();
+                self.cover = Some(format!("file://{path}").into());
+                return;
             }
         }
     }

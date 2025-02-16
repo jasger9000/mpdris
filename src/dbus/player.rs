@@ -232,7 +232,7 @@ impl PlayerInterface {
         let mut map = HashMap::new();
 
         if let Some(song) = &s.current_song {
-            let song_url = format!("file://{}", c.music_directory.join(&*song.uri).to_str().unwrap());
+            let song_url = format!("file://{}", c.music_directory.join(&*song.uri).display());
 
             map.insert("mpris:trackid", id_to_path(song.id).into());
             map.insert("xesam:url", song_url.into());
