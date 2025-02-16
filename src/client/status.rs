@@ -1,6 +1,5 @@
 use async_std::channel::Sender;
 use std::mem::replace;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -108,10 +107,10 @@ impl Song {
     }
 
     async fn try_set_cover_url(&mut self) {
-        let base: &str = &config().read().await.music_directory;
+        let base = &config().read().await.music_directory;
         let paths = {
-            let covers_dir: PathBuf = [base, "covers", &self.uri].iter().collect();
-            let same_dir: PathBuf = [base, &self.uri].iter().collect();
+            let covers_dir = base.join("covers").join(&*self.uri);
+            let same_dir = base.join(&*self.uri);
             let cover_file = same_dir.with_file_name("cover");
 
             [covers_dir, same_dir, cover_file]
