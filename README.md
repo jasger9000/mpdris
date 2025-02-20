@@ -109,9 +109,9 @@ The config file has the following options:
 This directory will be searched for image files that correspond to the currently playing song to display as cover art.
 
 #### Example:
-Let's say you have a user who stores their Music in `~/Music` and set their `cover_directory` to be in `~/Music/Pictures/songcovers`.
-If they now play the song `Resurrections.mp3` located in `~/Music/Celeste`,
-mpDris will search in `~/Pictures/songcovers/Celeste/` for a file named Resurrections with one of the following file extensions:
+Let's say you have a user who stores their Music in `~/Music` and set their `cover_directory` to be in `~/Music/Pictures/songcovers`.<br />
+If they now play the song `Resurrections.mp3` located in `~/Music/Celeste`,<br />
+mpDris will search in `~/Pictures/songcovers/Celeste/` for a file named Resurrections with one of the following file extensions:<br />
 `jpg`, `jpeg`, `png`, `webp`, `avif`, `jxl`, `bmp`, `gif`, `heif` and `heic`.
 
 ### music_directory
@@ -144,7 +144,7 @@ If you have the song `Resurrections.mp3` in `/home/johndoe/Music/Celeste/`, mpDr
 ## Contributing
 Contributions are always welcome!
 
-If you feel there's something missing/wrong/something that could be improved please open an [issue](https://github.com/jasger9000/mpDris/issues).
+If you feel there's something missing/wrong/something that could be improved please open an [issue](https://github.com/jasger9000/mpDris/issues).<br />
 Or if you want to add something yourself, just [open a pull request](https://github.com/jasger9000/mpDris/pulls) and I will have a look at it as soon as I can.
 
 
