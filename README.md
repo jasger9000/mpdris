@@ -7,6 +7,16 @@
 A lightweight application that implements the media player D-Bus interface [MPRIS](https://wiki.archlinux.org/title/MPRIS) for the [Music Player Daemon (MPD)](https://musicpd.com).
 
 
+__Table of Contents:__
+* [Dependencies](#dependencies)
+* [Installation](#installation)
+* [Configuration](#configuration)
+* [Roadmap](#roadmap)
+* [Contributing](#contributing)
+* [Licence](#licence)
+* [Authors](#authors)
+
+
 ## Dependencies
 
 ### Runtime
@@ -99,10 +109,16 @@ The config file has the following options:
 This directory will be searched for image files that correspond to the currently playing song to display as cover art.
 
 #### Example:
-Let's say you have a user who stores their Music in `~/Music` and set their `cover_directory` to be in `~/Music/Pictures/songcovers`.
-If they now play the song `Resurrections.mp3` located in `~/Music/Celeste`,
-mpDris will search in `~/Pictures/songcovers/Celeste/` for a file named Resurrections with one of the following file extensions:
+Let's say you have a user who stores their Music in `~/Music` and set their `cover_directory` to be in `~/Music/Pictures/songcovers`.<br />
+If they now play the song `Resurrections.mp3` located in `~/Music/Celeste`,<br />
+mpDris will search in `~/Pictures/songcovers/Celeste/` for a file named Resurrections with one of the following file extensions:<br />
 `jpg`, `jpeg`, `png`, `webp`, `avif`, `jxl`, `bmp`, `gif`, `heif` and `heic`.
+
+Alternatively if the song is located in a sub-directory, you can name a cover file the same name as the directory
+and it will be used for every song in that directory.<br />
+So sticking with the example from above, mpDris will search for a file in `~/Pictures/songcovers/`
+named Celeste with one of the above listed extensions.
+
 
 ### music_directory
 Like cover_directory, this directory can also be used to find covers.
@@ -130,10 +146,11 @@ If you have the song `Resurrections.mp3` in `/home/johndoe/Music/Celeste/`, mpDr
 - [ ] implement tracklist interface
 
 
+
 ## Contributing
 Contributions are always welcome!
 
-If you feel there's something missing/wrong/something that could be improved please open an [issue](https://github.com/jasger9000/mpDris/issues).
+If you feel there's something missing/wrong/something that could be improved please open an [issue](https://github.com/jasger9000/mpDris/issues).<br />
 Or if you want to add something yourself, just [open a pull request](https://github.com/jasger9000/mpDris/pulls) and I will have a look at it as soon as I can.
 
 
@@ -143,4 +160,3 @@ The Project is Licensed under the [MIT Licence](https://github.com/jasger9000/mp
 
 ## Authors
 - [@jasger9000](https://www.github.com/jasger9000)
-

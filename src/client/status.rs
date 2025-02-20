@@ -1,8 +1,6 @@
 use async_std::channel::Sender;
 use log::debug;
-use std::mem::replace;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{mem::replace, path::PathBuf, sync::Arc, time::Duration};
 
 use crate::config::config;
 
@@ -65,7 +63,7 @@ pub enum Repeat {
 
 #[derive(Debug, Clone)]
 pub struct Song {
-    pub uri: Arc<str>,
+    pub uri: PathBuf,
     pub cover: Option<Arc<str>>,
     pub artists: Vec<Arc<str>>,
     pub album: Option<Arc<str>>,
@@ -91,7 +89,7 @@ impl Song {
     /// Creates a new empty song
     pub fn new() -> Self {
         Self {
-            uri: "".into(),
+            uri: PathBuf::new(),
             cover: None,
             artists: Vec::new(),
             album: None,
@@ -108,16 +106,25 @@ impl Song {
     }
 
     async fn try_set_cover_url(&mut self) {
-        debug!("searching cover for '{}'", self.uri);
+        debug!("searching cover for '{}'", self.uri.display());
 
         let paths = {
+            let mut vec = Vec::new();
             let c = config().read().await;
 
-            let covers_dir = c.cover_directory.join(&*self.uri);
-            let same_dir = c.music_directory.join(&*self.uri);
-            let cover_file = same_dir.with_file_name("cover");
+            vec.push(c.cover_directory.join(&*self.uri));
+            // Music/Celeste/Resurrections.mp3 -> covers/Celeste
+            if let Some(p) = self.uri.parent() {
+                if p.parent().is_some() {
+                    // p.parent() is none if p = ""
+                    vec.push(c.cover_directory.join(p));
+                }
+            }
 
-            [covers_dir, same_dir, cover_file]
+            vec.push(c.music_directory.join(&*self.uri));
+            vec.push(vec[vec.len() - 1].with_file_name("cover"));
+
+            vec
         };
 
         for mut path in paths {
