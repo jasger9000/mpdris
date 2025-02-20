@@ -114,6 +114,12 @@ If they now play the song `Resurrections.mp3` located in `~/Music/Celeste`,<br /
 mpDris will search in `~/Pictures/songcovers/Celeste/` for a file named Resurrections with one of the following file extensions:<br />
 `jpg`, `jpeg`, `png`, `webp`, `avif`, `jxl`, `bmp`, `gif`, `heif` and `heic`.
 
+Alternatively if the song is located in a sub-directory, you can name a cover file the same name as the directory
+and it will be used for every song in that directory.<br />
+So sticking with the example from above, mpDris will search for a file in `~/Pictures/songcovers/`
+named Celeste with one of the above listed extensions.
+
+
 ### music_directory
 Like cover_directory, this directory can also be used to find covers.
 MpDris will search the following paths for song covers, using the first one it finds:
