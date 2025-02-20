@@ -113,6 +113,14 @@ impl Song {
             let c = config().read().await;
 
             vec.push(c.cover_directory.join(&*self.uri));
+            // Music/Celeste/Resurrections.mp3 -> covers/Celeste
+            if let Some(p) = self.uri.parent() {
+                if p.parent().is_some() {
+                    // p.parent() is none if p = ""
+                    vec.push(c.cover_directory.join(p));
+                }
+            }
+
             vec.push(c.music_directory.join(&*self.uri));
             vec.push(vec[vec.len() - 1].with_file_name("cover"));
 
