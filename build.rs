@@ -1,17 +1,45 @@
 use core::panic;
+use git2::{ObjectType, Repository};
 use std::{env, process::Command};
 
 fn main() {
-    let hash = {
-        if let Ok(var) = env::var("GIT_HASH") {
-            var
-        } else {
-            match Command::new("git").args(["rev-parse", "--short", "HEAD"]).output() {
-                Ok(output) => String::from_utf8(output.stdout).expect("git output is utf-8"),
-                _ => panic!("cannot get git hash"),
+    println!("cargo::rerun-if-changed={}", env::var("RUSTC").expect("$RUSTC is not valid"));
+    println!("cargo::rerun-if-env-changed=GIT_HASH");
+
+    if let Ok(var) = env::var("GIT_HASH") {
+        println!("cargo::rustc-env=GIT_HASH={var}");
+    }
+
+    if let Ok(repo) = Repository::open(".") {
+        // add .git/HEAD to rerun-if
+        let head_path = repo.path().join("HEAD");
+        if head_path.exists() {
+            println!("cargo::rerun-if-changed={}", head_path.display());
+        }
+
+        if let Ok(head) = repo.head() {
+            // add the ref that HEAD points to to rerun-if
+            if let Ok(pointer) = head.resolve() {
+                if let Some(name) = pointer.name() {
+                    let path = repo.path().join(name);
+                    println!("cargo::rerun-if-changed={}", path.display());
+                }
+            }
+
+            // emit the git hash if not overriden
+            if env::var_os("GIT_HASH").is_none() {
+                println!(
+                    "cargo::rustc-env=GIT_HASH={}",
+                    head.peel(ObjectType::Commit)
+                        .expect("failed to get last commit")
+                        .short_id()
+                        .expect("failed to get commit SHA")
+                        .as_str()
+                        .expect("failed to turn commit SHA into str")
+                );
             }
         }
-    };
+    }
 
     let rustc_ver = match Command::new("rustc").arg("-vV").output() {
         Ok(output) => {
@@ -37,6 +65,5 @@ fn main() {
         _ => panic!("Cannot get output from rustc"),
     };
 
-    println!("cargo::rustc-env=GIT_HASH={hash}");
     println!("cargo::rustc-env=RUSTC_VERSION={rustc_ver}");
 }
