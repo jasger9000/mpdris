@@ -1,7 +1,29 @@
 use core::panic;
+use git2::{ObjectType, Repository};
 use std::{env, process::Command};
 
 fn main() {
+    println!("cargo::rerun-if-changed={}", env::var("RUSTC").expect("$RUSTC is not valid"));
+    println!("cargo::rerun-if-env-changed=GIT_HASH");
+
+    if let Ok(repo) = Repository::open(".") {
+        // add .git/HEAD to rerun-if
+        let head_path = repo.path().join("HEAD");
+        if head_path.exists() {
+            println!("cargo::rerun-if-changed={}", head_path.display());
+        }
+
+        if let Ok(head) = repo.head() {
+            // add the ref that HEAD points to to rerun-if
+            if let Ok(pointer) = head.resolve() {
+                if let Some(name) = pointer.name() {
+                    let path = repo.path().join(name);
+                    println!("cargo::rerun-if-changed={}", path.display());
+                }
+            }
+        }
+    }
+
     let hash = {
         if let Ok(var) = env::var("GIT_HASH") {
             var
