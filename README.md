@@ -7,6 +7,16 @@
 A lightweight application that implements the media player D-Bus interface [MPRIS](https://wiki.archlinux.org/title/MPRIS) for the [Music Player Daemon (MPD)](https://musicpd.com).
 
 
+__Table of Contents:__
+* [Dependencies](#dependencies)
+* [Installation](#installation)
+* [Configuration](#configuration)
+* [Roadmap](#roadmap)
+* [Contributing](#contributing)
+* [Licence](#licence)
+* [Authors](#authors)
+
+
 ## Dependencies
 
 ### Runtime
@@ -130,6 +140,7 @@ If you have the song `Resurrections.mp3` in `/home/johndoe/Music/Celeste/`, mpDr
 - [ ] implement tracklist interface
 
 
+
 ## Contributing
 Contributions are always welcome!
 
@@ -143,4 +154,3 @@ The Project is Licensed under the [MIT Licence](https://github.com/jasger9000/mp
 
 ## Authors
 - [@jasger9000](https://www.github.com/jasger9000)
-
