@@ -24,6 +24,7 @@ libloading = "0.8.6"
 log = "0.4.25"
 simplelog = "0.12.2"
 time = "0.3.37"
+dns-lookup = "2.0.4"
 
 [profile.release]
 strip = true

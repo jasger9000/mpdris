@@ -9,6 +9,7 @@ use std::{env, path::Path, path::PathBuf};
 use crate::args::Args;
 use crate::util::expand::serde_expand_path;
 use crate::HOME_DIR;
+use dns_lookup::lookup_host;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Config {
@@ -136,12 +137,15 @@ impl Config {
     /// Loads values $MPD_HOST and $MPD_PORT from environment
     fn load_from_env_vars(&mut self) -> io::Result<()> {
         if let Ok(addr) = env::var("MPD_HOST") {
-            self.addr = addr.parse().map_err(|_e| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "Could not parse the $MPD_HOST environment variable into a host address.",
-                )
-            })?;
+            self.addr = lookup_host(addr.as_str())
+                .map_err(|_e| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Could not resolve the $MPD_HOST environment variable into an IP address.",
+                    )
+                })?
+                .pop()
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Could not resolve $MPD_HOST"))?;
         }
 
         if let Ok(port) = env::var("MPD_PORT") {
