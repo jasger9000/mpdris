@@ -132,7 +132,9 @@ mod tests {
 
     #[test]
     fn test_unset_expansion() {
-        env::remove_var("UNSET_VAR");
+        unsafe {
+            env::remove_var("UNSET_VAR");
+        }
 
         assert_eq!(expand_path("some/path"), "some/path");
         assert_eq!(expand_path("$UNSET_VAR/some/path"), "$UNSET_VAR/some/path");
@@ -145,9 +147,11 @@ mod tests {
 
     #[test]
     fn test_expansion() {
-        env::set_var("HOME", "/home/repeatable");
-        env::set_var("SOME_VAR", "relative");
-        env::remove_var("UNSET_VAR");
+        unsafe {
+            env::set_var("HOME", "/home/repeatable");
+            env::set_var("SOME_VAR", "relative");
+            env::remove_var("UNSET_VAR");
+        }
 
         assert_eq!(expand_path("~"), "/home/repeatable");
         assert_eq!(expand_path("~/"), "/home/repeatable/");
