@@ -2,15 +2,15 @@ use async_std::task::block_on;
 use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::{Arc, atomic::AtomicBool};
 use std::{env, io, process::exit};
 
 use signal_hook::{consts::TERM_SIGNALS, flag, iterator::Signals, low_level::emulate_default_handler};
 
 use crate::args::Args;
 use crate::client::MPDClient;
-use crate::config::{config, Config, CONFIG};
-use util::notify::{monotonic_time, Systemd};
+use crate::config::{CONFIG, Config, config};
+use util::notify::{Systemd, monotonic_time};
 
 mod args;
 mod client;

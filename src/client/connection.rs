@@ -13,7 +13,7 @@ use log::{debug, error, info, warn};
 
 use super::error::MPDResult as Result;
 use super::error::{Error, ErrorKind};
-use crate::config::{config, Config};
+use crate::config::{Config, config};
 use crate::util::send_sig;
 
 /// How many bytes MPD sends at once

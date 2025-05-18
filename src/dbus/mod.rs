@@ -1,9 +1,9 @@
 use async_std::channel::Receiver;
-use async_std::task::{spawn, JoinHandle};
+use async_std::task::{JoinHandle, spawn};
 use log::warn;
 use std::sync::Arc;
-use zbus::zvariant::ObjectPath;
 use zbus::Connection;
+use zbus::zvariant::ObjectPath;
 use zbus::{connection::Builder, object_server::InterfaceRef};
 
 use base::BaseInterface;

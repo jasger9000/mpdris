@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr};
 use std::{env, path::Path, path::PathBuf};
 
+use crate::HOME_DIR;
 use crate::args::Args;
 use crate::util::expand::serde_expand_path;
-use crate::HOME_DIR;
 use dns_lookup::lookup_host;
 
 #[derive(Deserialize, Serialize, Debug)]
