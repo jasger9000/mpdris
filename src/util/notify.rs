@@ -1,7 +1,7 @@
 use std::{ffi::CString, time::Duration};
 
-use libc::{c_char, c_int, clock_gettime, timespec, CLOCK_MONOTONIC};
-use libloading::{library_filename, Library};
+use libc::{CLOCK_MONOTONIC, c_char, c_int, clock_gettime, timespec};
+use libloading::{Library, library_filename};
 
 #[derive(Debug)]
 pub struct Systemd {

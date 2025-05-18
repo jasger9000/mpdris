@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use async_std::channel::{bounded, unbounded, Receiver, Sender};
+use async_std::channel::{Receiver, Sender, bounded, unbounded};
 use async_std::sync::{Arc, Mutex, RwLock};
-use async_std::task::{sleep, spawn, JoinHandle};
+use async_std::task::{JoinHandle, sleep, spawn};
 
-use futures_util::future::{join, select, Either};
+use futures_util::future::{Either, join, select};
 use futures_util::pin_mut;
 use log::{info, warn};
 

@@ -155,8 +155,8 @@ impl From<ParseMPDError> for Error {
 
 impl From<Error> for zbus::fdo::Error {
     fn from(value: Error) -> Self {
-        use zbus::fdo::Error::*;
         use ErrorKind::*;
+        use zbus::fdo::Error::*;
 
         match value.kind {
             NotAList => Failed(value.to_string()),
