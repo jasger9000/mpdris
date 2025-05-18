@@ -46,7 +46,7 @@ pub fn expand_path(str: &str) -> String {
         }
 
         // if the dollar sign is escaped ignore it
-        if is_char_escaped(str[..dollar_idx].as_bytes()) {
+        if is_char_escaped(&str.as_bytes()[..dollar_idx]) {
             ret.push('$');
             continue;
         }
