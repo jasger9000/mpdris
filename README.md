@@ -43,10 +43,16 @@ To install this application, you can either...
 > [!IMPORTANT]
 > This only works on systems using pacman
 
-The package is available on the [AUR](https://aur.archlinux.org/packages/mpdris) or [GitHub](https://github.com/jasger9000/mpDris-aur)<br />
+The package is available on the AUR or GitHub (see table below)<br />
 You can either build the AUR-package yourself, as detailed below, or use your favourite AUR-helper.
 
-**Either way, it is strongly encouraged to read the [PKGBUILD](https://aur.archlinux.org/cgit/aur.git/tree/PKGBUILD?h=mpdris) first.**
+**Either way, it is strongly encouraged to read the respective PKGBUILD first.**
+
+| Type                                                        | AUR                                                                                                            | GitHub                                                               |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [Default](a "Compile yourself from release source tarball") | [![AUR Version](https://img.shields.io/aur/version/mpdris)](https://aur.archlinux.org/packages/mpdris)         | [GitHub Link](https://github.com/jasger9000/mpDris-aur/tree/master)  |
+| [Binary](a "Download prebuilt release binaries")            | [![AUR Version](https://img.shields.io/aur/version/mpdris-bin)](https://aur.archlinux.org/packages/mpdris-bin) | [GitHub Link](https://github.com/jasger9000/mpDris-aur/tree/pkg-bin) |
+| [Git](a "Download & compile from git source")               | [![AUR Version](https://img.shields.io/aur/version/mpdris-git)](https://aur.archlinux.org/packages/mpdris-git) | [GitHub Link](https://github.com/jasger9000/mpDris-aur/tree/pkg-git) |
 
 #### Build the AUR-package manually
 1. Clone the AUR package repository and cd into the directory:
@@ -143,6 +149,8 @@ If you have the song `Resurrections.mp3` in `/home/johndoe/Music/Celeste/`, mpDr
 - [x] implement base interface
 - [x] implement player interface
 - [x] add control functionality
+- [ ] add a manpage
+- [ ] add ffmpeg cover support
 - [ ] implement tracklist interface
 
 
