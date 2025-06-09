@@ -12,12 +12,12 @@ repository = "https://github.com/jasger9000/mpDris"
 [dependencies]
 argh = "0.1.12"
 const_format = "0.2.32"
-zbus = "5.3.1"
+zbus = "5.7.1"
 libc = "0.2.156"
 serde = { version = "1.0.208", features = ["derive"] }
 toml = "0.8.19"
 signal-hook = "0.3.17"
-async-std = { version = "1.12.0", features = ["attributes"] }
+async-std = { version = "1.13.1", features = ["attributes"] }
 futures-util = { version = "0.3.30", default-features = false, features = ["io"] }
 libloading = "0.8.6"
 log = "0.4.25"
@@ -25,11 +25,12 @@ simplelog = "0.12.2"
 time = "0.3.37"
 dns-lookup = "2.0.4"
 
+[build-dependencies]
+git2 = "0.20.0"
+
 [profile.release]
 strip = true
 opt-level = "z"
 lto = true
 codegen-units = 1
 
-[build-dependencies]
-git2 = "0.20.0"
