@@ -97,7 +97,13 @@ You can either build the AUR-package yourself, as detailed below, or use your fa
     ```
 
 ## Configuration
-You can configure mpDris using the configuration located at `~/.config/mpd/mpDris.conf` or using command-line arguments.
+You can configure mpDris using the configuration file or using command-line arguments.
+The config file should either be located in `$XDG_CONFIG_HOME/mpdris/mpdris.conf` or `~/.config/mpdris/mpdris.conf`
+
+> [!NOTE]
+> While the paths `$XDG_CONFIG_HOME/mpd/mpDris.conf` and `$HOME/mpd/mpDris.conf` still work, they are
+> deprecated and may be removed in a future update.
+
 The config file has the following options:
 - addr: The IP address mpDris uses to connect to MPD (default: 127.0.0.1)
 - port: The port mpDris uses to connect to MPD (default: 6600)

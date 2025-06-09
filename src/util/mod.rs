@@ -3,16 +3,25 @@ use std::{env, io, path::PathBuf, process::exit};
 use crate::HOME_DIR;
 
 use libc::EXIT_SUCCESS;
-use log::debug;
+use log::{debug, warn};
 
 pub mod expand;
 pub mod notify;
 
 /// Gets the default config path from the environment.
-/// Defined as: $XDG_CONFIG_PATH/mpd/mpDris.conf or $HOME/.config/mpd/mpDris.conf
+/// Defined as: $XDG_CONFIG_PATH/mpdris/mpdris.conf or $HOME/.config/mpdris/mpdris.conf
+/// Deprecated path: $XDG_CONFIG_PATH/mpd/mpDris.conf or $HOME/.config/mpd/mpDris.conf
 pub fn get_config_path() -> PathBuf {
     let base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{}/.config", *HOME_DIR));
-    [base.as_str(), "mpd", "mpDris.conf"].iter().collect()
+    let paths: [PathBuf; 2] = [
+        [base.as_str(), "mpdris", "mpdris.conf"].iter().collect(),
+        [base.as_str(), "mpd", "mpDris.conf"].iter().collect(),
+    ];
+    let idx = paths.iter().position(|p| p.is_file()).unwrap_or(0);
+    if idx == 1 {
+        warn!("Using deprecated configuration path `{}`", paths[idx].display());
+    }
+    paths.into_iter().nth(idx).unwrap()
 }
 
 pub fn init_logger(level: log::LevelFilter) {
