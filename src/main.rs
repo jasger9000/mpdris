@@ -1,7 +1,7 @@
 use async_std::task::block_on;
 use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
 use log::{debug, error, info, warn};
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use std::sync::{Arc, atomic::AtomicBool};
 use std::{env, io, process::exit};
 
@@ -20,7 +20,7 @@ mod util;
 
 #[rustfmt::skip]
 const VERSION_STR: &str = concat!("Running ", env!("CARGO_BIN_NAME"), " v", env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ") compiled using rustc v", env!("RUSTC_VERSION"));
-static HOME_DIR: Lazy<String> = Lazy::new(|| env::var("HOME").expect("$HOME must be set"));
+static HOME_DIR: LazyLock<String> = LazyLock::new(|| env::var("HOME").expect("$HOME must be set"));
 
 #[cfg(target_os = "linux")]
 fn main() {

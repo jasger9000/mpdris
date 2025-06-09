@@ -1,10 +1,9 @@
 use async_std::{fs, io, sync::RwLock};
 use log::{info, warn};
-use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use std::net::{IpAddr, Ipv4Addr};
-use std::{env, path::Path, path::PathBuf};
+use std::{env, path::Path, path::PathBuf, sync::OnceLock};
 
 use crate::HOME_DIR;
 use crate::args::Args;
@@ -42,7 +41,7 @@ const DEFAULT_ADDR: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 const DEFAULT_PORT: u16 = 6600;
 const DEFAULT_RETRIES: isize = 3;
 
-pub static CONFIG: OnceCell<RwLock<Config>> = OnceCell::new();
+pub static CONFIG: OnceLock<RwLock<Config>> = OnceLock::new();
 
 /// Returns a refrence to the global CONFIG value.
 ///
