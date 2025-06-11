@@ -17,7 +17,7 @@ pub struct Args {
     /// the ip address over which to connect to mpd
     #[argh(option, short = 'a')]
     pub addr: Option<IpAddr>,
-    /// amount of times mpDris tries to reconnect to mpd before exiting. Set to -1 to retry inifinite times
+    /// number of times mpdris tries to reconnect to mpd before exiting. Set to -1 to retry infinite times
     #[argh(option, short = 'r')]
     pub retries: Option<isize>,
     /// path to config file to use instead of the default
