@@ -117,39 +117,28 @@ The config file has the following options:
 - music_directory: The directory in which MPD searches for Music (default: `~/Music`)
 - cover_directory: The dedicated directory to where your covers are stored. (default: `~/Music/covers`)
 
-### cover_directory
-This directory will be searched for image files that correspond to the currently playing song to display as cover art.
+### Covers - cover_directory & music_directory
+mpdris will search the configured cover and music directory for image files that correspond to the currently playing song to display as cover art.
 
-#### Example:
-Let's say you have a user who stores their Music in `~/Music` and set their `cover_directory` to be in `~/Music/Pictures/songcovers`.<br />
-If they now play the song `Resurrections.mp3` located in `~/Music/Celeste`,<br />
-mpdris will search in `~/Pictures/songcovers/Celeste/` for a file named Resurrections with one of the following file extensions:<br />
-`jpg`, `jpeg`, `png`, `webp`, `avif`, `jxl`, `bmp`, `gif`, `heif` and `heic`.
+Paths will be searched in the following order, trying every extension before moving to the next one:
+— $cover_directory/$song_path/$filename.$ext
+— $cover_directory/$song_path/$parent_name.$ext
+— $music_directory/$song_path/$filename.$ext
+— $music_directory/$song_path/cover.$ext
 
-Alternatively if the song is located in a sub-directory, you can name a cover file the same name as the directory
-and it will be used for every song in that directory.<br />
-So sticking with the example from above, mpdris will search for a file in `~/Pictures/songcovers/`
-named Celeste with one of the above listed extensions.
-
-
-### music_directory
-Like cover_directory, this directory can also be used to find covers.
-mpdris will search the following paths for song covers, using the first one it finds:
-- `$music_directory/$song_path/$filename.$ext`
-- `$music_directory/$song_path/cover.$ext`
-
-where `$song_path` the path up to the song from `$music_directory`, `$filename` the underlying filename of the song and
-`$ext` one of the image extensions listed under cover_directory.
+`$ext` can be one of the following values: jpg, jpeg, png, webp, avif, jxl, bmp, gif, heif and heic.<br />
+`$song_path` is the file path in the music directory leading up to the current song.<br />
+`$parent_name` is the name of the parent directory of the current song. (`$parent_name` is excluded from $song_path when both are used)<br />
 
 #### Example
-If you have the song `Resurrections.mp3` in `/home/johndoe/Music/Celeste/`, mpdris will search for a cover like this:
-- `/home/johndoe/Music/Celeste/Resurrections.jpg`
-- `/home/johndoe/Music/Celeste/Resurrections.png`<br />
-...
-- `/home/johnode/Music/Celeste/cover.jpg`
-- `/home/johnode/Music/Celeste/cover.png`<br />
-...
-- `/home/johndoe/Music/Celeste/cover.heic`
+Let's say you have a user who stores their music in `~/Music` and sets their cover_directory to be in `~/Pictures/songcovers`.
+If they now play the song `Resurrections.mp3` located in `~/Music/Celeste`, mpdris will search in `~/Pictures/songcovers/Celeste/` for a file named Resurrections with one of the above-mentioned file extensions.<br />
+If it cannot find it there, it will move to the next path.
+
+If the song is located in a subdirectory of the music directory, you can name a cover file the same name as the directory (denoted as `$parent_name` above), and it will be used for every song in that directory.
+So sticking with the example from above, mpdris will search for a file named Celeste in cover_directory with one of the above-listed extensions.
+If the song was one level deeper, so, for example, `~/Music/some/long/path/Celeste/Resurrections.mp3`, mpdris would look for the cover with this path: `~/Pictures/songcovers/some/long/path/Celeste.$ext`
+
 
 ## Roadmap
 - [x] implement base interface
