@@ -20,7 +20,7 @@ pub struct Args {
     /// number of times mpdris tries to reconnect to mpd before exiting. Set to -1 to retry infinite times
     #[argh(option, short = 'r')]
     pub retries: Option<isize>,
-    /// path to config file to use instead of the default
+    /// the path to the config file to use instead of the computed default
     #[argh(option, default = "get_config_path()")]
     pub config: PathBuf,
     /// the logging level to use. May be one of: trace, debug, info, warn, error
@@ -29,7 +29,7 @@ pub struct Args {
     /// when set, will try to fork into a daemon upon launch
     #[argh(switch)]
     pub daemon: bool,
-    /// when set, acts as a daemon without forking the process
+    /// set to act as a systemd service. Acts like a daemon without forking
     #[argh(switch)]
     pub service: bool,
 }
