@@ -1,0 +1,309 @@
+.\" Manpage for mpdris.
+.\" Contact g1.jasger@gmail.com to correct errors or typos.
+.TH MPDRIS 1 "2025\-06\-09" "mpdris 1.2.1" "mpdris man page"
+.AU J. Gerhards
+.SH NAME
+mpdris \- a bridge between MPD and MPRIS for music control
+.SH SYNOPSIS
+.B mpdris
+.RB [ \-p\ \fI<port> ]
+.RB [ \-a\ \fI<addr> ]
+.RB [ \-r\ \fI<amount> ]
+.RB [ \-\-config\ \fI<path> ]
+.RB [ \-\-level\ \fI<level> ]
+.RB [ \-\-daemon ]
+.RB [ \-\-service ]
+.SH DESCRIPTION
+mpdris is a lightweight application that implements the media player D-Bus interface MPRIS for the Music Player Daemon (MPD).
+This makes it possible to control your music through other software that implements the MPRIS standard (desktop environments and such).
+.br
+On startup mpdris first initializes the logging facility (logs to stdout).
+Afterwards, mpdris looks for the configuration file
+.RB (see\  FILES ).
+If it cannot find it, it will start with the default values (or the ones given as arguments
+.RB (see\  OPTIONS )).
+and write the loaded values to the default location.
+.br
+Next, mpdris will connect to MPD; on a successful connection, it will then register a D-Bus interface.
+If the name of the interface is already taken on the bus (for example, because another instance is already running), mpdris will immediately exit.
+Otherwise, mpdris is then ready and will listen to interrupt signals.
+
+mpdris will override the IP address and port over which to connect to MPD set in the config with the values of
+.B $MPD_HOST
+and
+.BR $MPD_PORT ,
+which itself will be overridden by the command line arguments.
+.br
+This creates the following order of importance, starting with the least and ending with the most important:
+.br
+\(em Config values
+.br
+\(em Environment variables
+.br
+\(em Command line arguments
+
+.TP
+Covers \- cover_directory & music_directory
+mpdris will search the configured cover and music directory for image files that correspond to the currently playing song to display as cover art.
+
+Paths will be searched in the following order, trying every extension before moving to the next one:
+.br
+\(em
+.IR $cover_directory / $song_path / $filename \&. $ext
+.br
+\(em
+.IR $cover_directory / $song_path / $parent_name \&. $ext
+.br
+\(em
+.IR $music_directory / $song_path / $filename \&. $ext
+.br
+\(em
+.IR $music_directory / $song_path /cover\&. $ext
+
+.I $ext
+can be one of the following values:
+.BR jpg ,
+.BR jpeg ,
+.BR png ,
+.BR webp ,
+.BR avif ,
+.BR jxl ,
+.BR bmp ,
+.BR gif ,
+.BR heif
+and
+.BR heic .
+.br
+.I $song_path
+is the file path in the music directory leading up to the current song.
+.br
+.I $parent_name
+is the name of the parent directory of the current song.
+.RI ( $parent_name
+is excluded from
+.I $song_path
+when both are used)
+
+Example:
+.br
+Let's say you have a user who stores their music in
+.B ~/Music
+and sets their
+.B cover_directory
+to be in
+.BR ~/Pictures/songcovers .
+.br
+If they now play the song
+.B Resurrections\&.mp3
+located in
+.BR ~/Music/Celeste ,
+mpdris will search in
+.B ~/Pictures/songcovers/Celeste/
+for a file named
+.B \%Resurrections
+with one of the above-mentioned file extensions.
+.br
+If it cannot find it there, it will move to the next path.
+
+If the song is located in a subdirectory of the music directory, you can name a cover file the same name as the directory
+.RI (denoted\ as\  $parent_name\  above),
+and it will be used for every song in that directory.
+.br
+So sticking with the example from above, mpdris will search for a file named
+.B Celeste
+in
+.B cover_directory
+with one of the above-listed extensions.
+.br
+If the song was one level deeper, so, for example,
+.BR ~/Music/some/long/path/Celeste/Resurrections\&.mp3 ,
+mpdris would look for the cover with this path:
+.B ~/Pictures/songcovers/some/long/path/Celeste\&.\fI$ext
+.SH EXAMPLES
+.EX
+.TP
+.B mpdris
+Start mpdris with the default settings, outputting logs to stdout/stderr
+.TP
+.BI mpdris\ -p\  6601\  -a\  192.168.1.10
+Connect to MPD on the port \fI6601\fR over the IP address \fI192.168.1.10
+.TP
+.BI mpdris\ --retries\  5
+Set attempts to reconnect to MPD to \fI5\fR before mpdris exits
+.TP
+.BI mpdris\ --config\  /home/johndoe/configs/mpdris.conf
+Use a custom configuration file located at \fI/home/johndoe/configs/mpdris.conf
+.TP
+.BI mpdris\ --level\  debug
+Run mpdris with the logging verbosity increased to the \fIdebug\fR level
+.TP
+.B mpdris --daemon
+Run mpdris as a daemon in the background
+.EE
+.SH OPTIONS
+.TP
+.BR \-v ,\  \-\-version
+display the version and exit.
+.TP
+.BI \-p\  <port>\fR,\  \-\-port\  <port>
+the port over which to connect to mpd.
+.TP
+.BI \-a\  <addr>\fR,\  \-\-addr\  <addr>
+the ip address over which to connect to mpd.
+.TP
+.BI \-r\  <amount>\fR,\  \-\-retries\  <amount>
+amount of times mpdris tries to reconnect to MPD before exiting.
+.br
+Set to \fB-1\fR to retry infinite times.
+.TP
+.BI \-\-config\  <path>
+path to config file to use instead of the default.
+.TP
+.BI \-\-level\  <level>
+the logging level/verbosity to use. May be one of:
+.BR trace ,
+.BR debug ,
+.BR info ,
+.BR warn ,
+.BR error
+.TP
+.B \-\-daemon
+When set, mpdris will try to fork into a daemon upon launch.
+Additionally, mpdris will close stdout, stdin, and sterr.
+.br
+Upon receiving a
+.B SIGHUP
+signal, mpdris will reload the config.
+.TP
+.B \-\-service
+should only be set when started through a systemd service.
+.br
+mpdris will try to load libsystemd in order to be able to notify systemd of its status.
+Failing to find/load the library will result in mpdris immediately exiting.
+.br
+As with the
+.B \-\-daemon
+flag, upon receiving a
+.B SIGHUP
+signal, mpdris will reload the config.
+.TP
+.BR \-h ,\  \-\-help
+display usage information
+.SH EXIT STATUS
+.IP "Status code: 0"
+\(em When the
+.B \-\-version
+flag was given, after displaying the version
+.br
+\(em When the application exits gracefully after being given an exit signal
+.br
+\(em When the
+.B \-\-daemon
+flag was given, the parent process exits with status code 0 after the fork
+.IP "Status code: 1"
+\(em When failing to set up the signal handler
+.br
+\(em When failing to load the config
+.br
+\(em When receiving a
+.B SIGQUIT
+and failing to dump the core
+.br
+\(em When receiving a second exit signal while trying to shut down gracefully
+.IP "Status code: 101"
+\(em When
+.B $HOME
+is not set or contains non-UTF-8 characters
+.br
+\(em In the event, that the variable holding the config was written to before loading the config
+.br
+\(em When failing to load libsystemd
+.br
+\(em When failing to create a valid trackid path for the dbus interface
+.br
+\(em When an internal channel to notify of MPD changes gets closed
+.br
+\(em When failing to send an exit signal to itself after using all retries to connect to MPD
+.br
+\(em When failing to get the current UTC offset
+.br
+\(em When failing to set the logging facility
+.SH ENVIRONMENT
+.TP
+.B HOME
+Used to get the path of the configuration file when
+.B $XDG_CONFIG_HOME
+is not set
+.RB (see\  FILES ).
+.br
+Additionally, paths beginning with tilde ('~')
+in the config file are replaced with 
+.BR $HOME .
+.br
+It is also used to set the default values for the
+.BR music_dir\  and\  cover_dir\  (see\  FILES ).
+.TP
+.B XDG_CONFIG_HOME
+Used to get the path of the configuration file
+.RB (see\  FILES ).
+.TP
+.B MPD_HOST
+The host/IP address over which mpdris will try to connect to MPD.
+In the case that a host instead of an IP address is given, mpdris will do a DNS lookup to resolve the address.
+
+While
+.B $MPD_HOST
+overrides the
+.B addr
+value in the config, it does not override the command line arguments.
+.TP
+.B MPD_PORT
+The port over which mpdris will try to connect to MPD.
+
+While
+.B $MPD_PORT
+overrides the
+.B port
+value in the config, it does not override the command line arguments.
+.SH FILES
+.TP
+.I $XDG_CONFIG_HOME/mpdris/mpdris.conf\fR,\fI $HOME/.config/mpdris/mpdris.conf
+The mpdris configuration file.
+.br
+The format and valid entries are detailed in
+.MR mpdris\&.conf 5 .
+.br
+A sample config can be found in
+.B /usr/share/doc/mpdris/sample.mpdris.conf
+.TP
+.I $HOME/Music
+The default music directory
+.RB (see\  DESCRIPTION ).
+.br
+The path can be changed in the configuration file (see
+.MR mpdris\&.conf 5 ).
+.TP
+.I $HOME/Music/covers
+The default cover directory
+.RB (see\  DESCRIPTION ).
+.br
+The path can be changed in the configuration file (see
+.MR mpdris\&.conf 5 ).
+.SH STANDARDS
+MPRIS D-Bus Interface Specification Version 2.2
+.SH BUGS
+Please report any issues and bugs to
+.UR https://github.com/jasger9000/mpdris/issues
+.UE
+.SH AUTHORS
+J. Gerhards (\c
+.MT g1.jasger@gmail.com
+.ME ")"
+& Contributors
+
+.UR https://github.com/jasger9000/mpdris/graphs/contributors
+GitHub contributor graph
+.UE
+.SH SEE ALSO
+.MR mpdris\&.conf 5 ,
+.MR mpd 1

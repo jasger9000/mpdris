@@ -1,0 +1,114 @@
+.\" Manpage for the mpdris configuration file mpdris.conf.
+.\" Contact g1.jasger@gmail.com to correct errors or typos.
+.TH MPDRIS\&.CONF 5 "2025\-06\-09" "mpdris 1.2.1" "mpdris\&.conf man page"
+.AU J. Gerhards
+.SH NAME
+mpdris\&.conf \- mpdris configuration file
+.SH SYNOPSIS
+.sp
+$XDG_CONFIG_HOME/mpdris/mpdris\&.conf, $HOME/\&.config/mpdris/mpdris\&.conf
+
+/usr/share/doc/mpdris/sample\&.mpdris\&.conf
+.SH DESCRIPTION
+mpdris\&.conf is the configuration file for
+.BR mpdris (1).
+If not specified as a command line argument, mpdris searches for it at
+.B $XDG_CONFIG_HOME/mpdris/mpdris\&.conf\fR,
+if
+.B $XDG_CONFIG_HOME
+is defined. If not, mpdris will instead look at
+.B $HOME/\&.config/mpdris/mpdris\&.conf\fR.
+.br
+If it also can't find it there, it will load the default values and write them to the selected location.
+
+The configuration is written in the TOML format, meaning:
+.br
+# This is a comment
+
+this_is_a_value = 6600
+
+[section]
+.br
+key = "and this is a value in a section" # this is also a valid comment
+
+For settings that specify a file path, the tilde ('~') is expanded to
+.B $HOME\fR.
+In addition, names starting with a dollar sign ('$') are treated as environment variables, like regular shell escaping.
+.br
+Note: The brace syntax
+.RI (${ varname })
+is, as of v1\&.2\&.0 not supported.
+
+See
+.B /usr/share/doc/mpdris/sample\&.mpdris\&.conf
+for an example configuration.
+.SH OPTIONS
+.TP
+.BI addr\fR\ =\ \(dq <address>\fR\(dq
+The IP address that MPD runs on.
+While this can be a different machine than your own, this is very unlikely,
+so in almost every case you can just leave it as the default value.
+
+Default:
+.B \(dq127.0.0.1\(dq
+.TP
+.BI port\fR\ =\  <port>
+The TCP port that MPD listens on for its API.
+.br
+Can be configured in
+.BR mpd\&.conf ,
+MPD defaults to
+.BR 6600 .
+
+Default:
+.B 6600
+.TP
+.BI retries\fR\ =\  <amount>
+The amount of times to retry to get a connection to MPD before exiting
+
+Default:
+.B 3
+.TP
+.BI music_directory\fR\ =\ \(dq <path>\fR\(dq
+The root directory where your music is stored and is configured in
+.BR mpd\&.conf .
+It is very likely that this is just
+.BR ~/Music .
+.br
+This directory will additionally be used to search for covers; for more information, see the
+.B DESCRIPTION
+section in
+.MR mpdris 1 .
+
+Default:
+.B \(dq~/Music\(dq
+.TP
+.BI cover_directory\fR\ =\ \(dq <path>\fR\(dq
+The dedicated directory to where your covers are stored.
+.br
+For more information, see the
+.B DESCRIPTION
+section in
+.MR mpdris 1 .
+
+Default:
+.B \(dq~/Music/covers\(dq
+.SH STANDARDS
+Tom's Obvious, Minimal Language (TOML)
+.SH BUGS
+Please report any issues and bugs to
+.UR https://github.com/jasger9000/mpdris/issues
+.UE
+.SH AUTHORS
+J. Gerhards (\c
+.MT g1.jasger@gmail.com
+.ME ")"
+& Contributors
+
+.UR https://github.com/jasger9000/mpdris/graphs/contributors
+GitHub contributor graph
+.UE
+.SH SEE ALSO
+.MR mpdris 1 ,
+.MR mpd\&.conf 5 ,
+.MR mpd 1

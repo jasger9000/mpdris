@@ -144,7 +144,7 @@ If the song was one level deeper, so, for example, `~/Music/some/long/path/Celes
 - [x] implement base interface
 - [x] implement player interface
 - [x] add control functionality
-- [ ] add a manpage
+- [x] add a manpage
 - [ ] add ffmpeg cover support
 - [ ] implement tracklist interface
 
