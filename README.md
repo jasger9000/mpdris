@@ -37,7 +37,7 @@ __Table of Contents:__
 To install this application, you can either...
 - [Use the AUR package (Arch Linux only)](#use-the-aur-package)
 - [Build the application yourself](#build-the-application-yourself)
-- [Install the application from a release binary](#install-using-release-binary)
+- [Install the application from a release binary](#install-using-release-binarytarball)
 
 ### Use the AUR package
 > [!IMPORTANT]
@@ -87,11 +87,11 @@ You can either build the AUR-package yourself, as detailed below, or use your fa
     systemctl --user enable mpdris.service
     ```
 
-### Install using release binary
-2. Download the correct binary for your architecture
+### Install using release binary/tarball
 1. Go to the [release tab](https://github.com/jasger9000/mpdris/releases)
+2. Download the correct tarball or binary for your architecture
     - If you don't know what your architecture is, you can find out by running `lscpu`
-3. Copy the file to `/usr/local/bin` and rename it to `mpdris`
+3. Move the binary to `/usr/local/bin` and rename it to `mpdris` if needed
 4. Add the execute permission to the file with
     ```bash
     chmod +x /usr/local/bin/mpdris
