@@ -5,8 +5,14 @@ use std::{env, io::Write, os::unix::fs::PermissionsExt, process::Command, sync::
 use crate::{DIST_DIR, NAME, PROJECT_ROOT, TARGET_DIR, Task, build_man};
 use anyhow::{Context, Result, anyhow};
 macro_rules! cp {
+    ($outdir:expr, $src:literal, $dst:literal, $perm:expr) => {
+        cp!(&$crate::PROJECT_ROOT, $outdir, $src, $dst, $perm)
+    };
     ($indir:expr, $outdir:expr, $src:literal, $dst:literal, $perm:expr) => {
         $crate::dist::copy($indir, $outdir, &::std::format!($src), &::std::format!($dst), $perm)
+    };
+    ($indir:expr, $outdir:expr, $src:literal, $dst:literal) => {
+        $crate::dist::copy_dir_all($indir.join(::std::format!($src)), $outdir.join(::std::format!($dst)))
     };
 }
 
@@ -14,6 +20,20 @@ fn copy<P: AsRef<Path>>(indir: &Path, outdir: &Path, src: P, dst: P, perm: u32) 
     let (src, dst) = (indir.join(src), outdir.join(dst));
     fs::copy(&src, &dst).with_context(|| format!("Failed to copy {}", dst.file_name().unwrap().display()))?;
     fs::set_permissions(&dst, Permissions::from_mode(perm))?;
+    Ok(())
+}
+
+fn copy_dir_all<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<()> {
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            copy_dir_all(path, dst.as_ref().join(entry.file_name()))?;
+        } else {
+            fs::copy(path, dst.as_ref().join(entry.file_name()))?;
+        }
+    }
     Ok(())
 }
 
@@ -66,5 +86,41 @@ pub(crate) fn build(path: Option<PathBuf>, arch: &str) -> Result<()> {
     build_binary(arch)?;
     build_man(&outdir.join("man"))?;
 
+    Ok(())
+}
+
+pub(crate) fn install(path: Option<PathBuf>, arch: &str) -> Result<()> {
+    let outdir = path.unwrap_or(DIST_DIR.join(arch));
+
+    install_create_dirs(&outdir).with_context(|| "Failed to create dist directory structure")?;
+    install_copy_files(&outdir, arch).with_context(|| "Failed to copy assets to install dir")?;
+
+    Ok(())
+}
+
+fn install_create_dirs(outdir: &Path) -> Result<()> {
+    let t = Task::new("Creating directory structure");
+    fs::create_dir_all(outdir)?;
+    fs::create_dir_all(outdir.join("usr/bin"))?;
+    fs::create_dir_all(outdir.join("usr/lib/systemd/user"))?;
+    fs::create_dir_all(outdir.join(format!("usr/share/doc/{NAME}")))?;
+    fs::create_dir_all(outdir.join(format!("usr/share/licenses/{NAME}")))?;
+    fs::create_dir_all(outdir.join("usr/share/man"))?;
+
+    t.success();
+    Ok(())
+}
+
+#[rustfmt::skip]
+fn install_copy_files(outdir: &Path, arch: &str) -> Result<()> {
+    let t = Task::new("Copying files to dist");
+    cp!(&DIST_DIR, outdir, "{NAME}_{arch}-linux-gnu", "usr/bin/{NAME}", 0o755)?;
+    cp!(outdir, "resources/mpdris.service", "usr/lib/systemd/user/mpdris.service", 0o644)?;
+    cp!(outdir, "resources/sample.mpdris.conf", "usr/share/doc/{NAME}/sample.mpdris.conf", 0o644)?;
+    cp!(outdir, "README.md", "usr/share/doc/{NAME}/README.md", 0o644)?;
+    cp!(outdir, "LICENSE", "usr/share/licenses/{NAME}/LICENSE", 0o644)?;
+    cp!(DIST_DIR, outdir, "man", "usr/share/man")?;
+
+    t.success();
     Ok(())
 }

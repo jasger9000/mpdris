@@ -16,6 +16,7 @@ pub(crate) struct Args {
 pub(crate) enum Task {
     Man(ManTask),
     Build(BuildTask),
+    Install(InstallTask),
     CleanDist(CleanTask),
 }
 
@@ -33,6 +34,20 @@ pub(crate) struct ManTask {
 /// Result is written to target/dist/<arch> or <path> if provided.
 #[argh(subcommand, name = "build", help_triggers("-h", "--help"))]
 pub(crate) struct BuildTask {
+    #[argh(option, default = "env::consts::ARCH.to_string()")]
+    /// the arch to compile for
+    pub(crate) arch: String,
+    #[argh(positional)]
+    /// path to install the files to instead of target/dist/<arch>
+    pub(crate) path: Option<PathBuf>,
+}
+
+#[derive(FromArgs, PartialEq, Debug)]
+/// Create an install using the default arch or <arch> if provided.
+/// Result is written to target/dist/<arch> or <path> if provided.
+/// Note: install does NOT compile anything, for that please use build
+#[argh(subcommand, name = "install", help_triggers("-h", "--help"))]
+pub(crate) struct InstallTask {
     #[argh(option, default = "env::consts::ARCH.to_string()")]
     /// the arch to compile for
     pub(crate) arch: String,
