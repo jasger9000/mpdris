@@ -80,8 +80,8 @@ You can either build the AUR-package yourself, as detailed below, or use your fa
     ```bash
     cargo build --release
     ```
-3. Copy the resulting file from `target/release/mpdris` to `/usr/local/bin`
-4. Copy `resources/mpdris.service` to `/usr/local/lib/systemd/user` (You might have to create that directory first)
+3. Move the resulting file from `target/release/mpdris` to `/usr/local/bin`
+4. Copy `resources/mpdris.service.local` to `/usr/local/lib/systemd/user` (You might have to create that directory first) and rename it to `mpdris.service`
 5. Enable the service to start it with MPD
     ```bash
     systemctl --user enable mpdris.service
@@ -96,7 +96,8 @@ You can either build the AUR-package yourself, as detailed below, or use your fa
     ```bash
     chmod +x /usr/local/bin/mpdris
     ```
-5. Download and move [mpdris.service](https://github.com/jasger9000/mpdris/blob/main/resources/mpdris.service) to `/usr/local/lib/systemd/user`  (You might have to create that directory first)
+5. Move `mpdris.service.local` to `/usr/local/lib/systemd/user` (You might have to create that directory first) and rename it to `mpdris.service`
+    - mpdris.service.local can be found in the release tarball or downloaded [here](https://github.com/jasger9000/mpdris/blob/main/resources/mpdris.service.local)
 6. Enable the service to start it with MPD
     ```bash
     systemctl --user enable mpdris.service
