@@ -157,6 +157,13 @@ Contributions are always welcome!
 If you feel there's something missing/wrong/something that could be improved please open an [issue](https://github.com/jasger9000/mpdris/issues).<br />
 Or if you want to add something yourself, just [open a pull request](https://github.com/jasger9000/mpdris/pulls) and I will have a look at it as soon as I can.
 
+## Packaging
+If you want to create a package of this application yourself, you can use the xtask cargo subcommand.<br />
+Simply use `cargo xtask build [<path>] [--arch <arch>]` to build the project.<br />
+To create an install from that build, use `cargo xtask install <path> [--arch <arch>]`. Note that you have to run the build command first though.<br />
+You can also just create the manpage structure using `cargo xtask man <dir>`.<br />
+To create release assets (tarballs, binaries, SHA256sums) for x86_64, i686 and aarch64 with `cargo xtask make-release-assets`.
+
 
 ## Licence
 The Project is Licensed under the [MIT Licence](https://github.com/jasger9000/mpdris/?tab=MIT-1-ov-file)
