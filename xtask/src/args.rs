@@ -16,6 +16,7 @@ pub(crate) struct Args {
 pub(crate) enum Task {
     Man(ManTask),
     Build(BuildTask),
+    CleanDist(CleanTask),
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -39,3 +40,8 @@ pub(crate) struct BuildTask {
     /// path to install the files to instead of target/dist/<arch>
     pub(crate) path: Option<PathBuf>,
 }
+
+#[derive(FromArgs, PartialEq, Debug)]
+/// Clean the target/dist directory
+#[argh(subcommand, name = "clean-dist", help_triggers("-h", "--help"))]
+pub(crate) struct CleanTask {}

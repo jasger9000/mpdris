@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::{env, process::exit, sync::LazyLock};
 
 use anyhow::Result;
-use dist::build;
+use dist::{build, clean_dist};
 
 pub(crate) use man::build_man;
 pub(crate) use task::Task;
@@ -40,5 +40,6 @@ fn try_main() -> Result<()> {
     match args.task {
         Man(task) => build_man(&task.dir),
         Build(task) => build(task.path, &task.arch),
+        CleanDist(..) => clean_dist(),
     }
 }

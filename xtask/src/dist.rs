@@ -17,6 +17,17 @@ fn copy<P: AsRef<Path>>(indir: &Path, outdir: &Path, src: P, dst: P, perm: u32) 
     Ok(())
 }
 
+pub(crate) fn clean_dist() -> Result<()> {
+    let t = Task::new("Cleaning dist");
+
+    if DIST_DIR.exists() {
+        fs::remove_dir_all(&*DIST_DIR).with_context(|| "Failed to delete the dist directory")?;
+    }
+
+    t.success();
+    Ok(())
+}
+
 pub(crate) fn build_binary(arch: &str) -> Result<()> {
     let t = Arc::new(Task::new(&format!("Compiling binary for {arch}")));
     let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
