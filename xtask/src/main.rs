@@ -2,11 +2,13 @@ use std::path::{Path, PathBuf};
 use std::{env, process::exit, sync::LazyLock};
 
 use anyhow::Result;
+use dist::build;
 
 pub(crate) use man::build_man;
 pub(crate) use task::Task;
 
 mod args;
+mod dist;
 mod man;
 mod task;
 
@@ -20,6 +22,7 @@ static PROJECT_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
 static DIST_DIR: LazyLock<PathBuf> = LazyLock::new(|| PROJECT_ROOT.join("target/dist"));
 static TARGET_DIR: LazyLock<PathBuf> = LazyLock::new(|| PROJECT_ROOT.join("target"));
 
+const NAME: &str = "mpdris";
 const MANPATH: &str = "resources/man";
 
 fn main() {
@@ -36,5 +39,6 @@ fn try_main() -> Result<()> {
 
     match args.task {
         Man(task) => build_man(&task.dir),
+        Build(task) => build(task.path, &task.arch),
     }
 }
