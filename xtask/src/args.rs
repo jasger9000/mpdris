@@ -18,6 +18,7 @@ pub(crate) enum Task {
     Build(BuildTask),
     Install(InstallTask),
     CleanDist(CleanTask),
+    MakeRelease(ReleaseTask),
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -60,3 +61,8 @@ pub(crate) struct InstallTask {
 /// Clean the target/dist directory
 #[argh(subcommand, name = "clean-dist", help_triggers("-h", "--help"))]
 pub(crate) struct CleanTask {}
+
+#[derive(FromArgs, PartialEq, Debug)]
+/// Create release assets (tarballs, binaries and SHA256 checksums) for x86_64, aarch64, i68
+#[argh(subcommand, name = "make-release-assets", help_triggers("-h", "--help"))]
+pub(crate) struct ReleaseTask {}

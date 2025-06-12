@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::{env, process::exit, sync::LazyLock};
 
 use anyhow::Result;
-use dist::{build, clean_dist, install};
+use dist::{build, clean_dist, install, make_release_assets};
 
 pub(crate) use man::build_man;
 pub(crate) use task::Task;
@@ -42,5 +42,6 @@ fn try_main() -> Result<()> {
         Build(task) => build(task.path, &task.arch),
         Install(task) => install(task.path, &task.arch),
         CleanDist(..) => clean_dist(),
+        MakeRelease(..) => make_release_assets(),
     }
 }

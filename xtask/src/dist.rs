@@ -1,9 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::{env, io::Write, os::unix::fs::PermissionsExt, process::Command, sync::Arc};
+use std::{env, fs::Permissions, io::Write, os::unix::fs::PermissionsExt, process::Command, sync::Arc};
 
 use crate::{DIST_DIR, NAME, PROJECT_ROOT, TARGET_DIR, Task, build_man};
 use anyhow::{Context, Result, anyhow};
+use flate2::{Compression, write::GzEncoder};
+use sha2::{Digest, Sha256};
+
 macro_rules! cp {
     ($outdir:expr, $src:literal, $dst:literal, $perm:expr) => {
         cp!(&$crate::PROJECT_ROOT, $outdir, $src, $dst, $perm)
@@ -74,7 +77,7 @@ pub(crate) fn build_binary(arch: &str) -> Result<()> {
     let t = Task::new("Copying binary to dist");
     fs::create_dir_all(&*DIST_DIR).with_context(|| "Failed to create dist directory")?;
     #[rustfmt::skip]
-    cp!(TARGET_DIR, DIST_DIR, "{arch}-unknown-linux-gnu/release/{NAME}", "{NAME}_{arch}-linux-gnu");
+    cp!(&TARGET_DIR, &DIST_DIR, "{arch}-unknown-linux-gnu/release/{NAME}", "{NAME}_{arch}-linux-gnu", 0o755)?;
     t.success();
 
     Ok(())
@@ -122,5 +125,66 @@ fn install_copy_files(outdir: &Path, arch: &str) -> Result<()> {
     cp!(DIST_DIR, outdir, "man", "usr/share/man")?;
 
     t.success();
+    Ok(())
+}
+
+pub(crate) fn make_release_assets() -> Result<()> {
+    let archs = ["x86_64", "i686", "aarch64"];
+    let mandir = DIST_DIR.join("man");
+    let mut checksums = (Vec::new(), Vec::new());
+
+    if !DIST_DIR.is_dir() {
+        fs::create_dir_all(&*DIST_DIR).with_context(|| "Failed to create dist directory")?;
+    }
+    build_man(&mandir)?;
+
+    for arch in archs {
+        println!("Making release for {arch}");
+
+        build_binary(arch)?;
+        let tarball_filename = format!("{NAME}_{arch}.tar.gz");
+        let binary_filename = format!("{NAME}_{arch}-linux-gnu");
+        let binary_outpath = PROJECT_ROOT.join(DIST_DIR.join(&binary_filename));
+
+        let t = Task::new("Making tar archive");
+        let mut builder = tar::Builder::new(Vec::new());
+        builder.mode(tar::HeaderMode::Deterministic);
+        builder.append_path_with_name(&binary_outpath, NAME)?;
+        builder.append_path_with_name(PROJECT_ROOT.join("resources/mpdris.service"), "mpdris.service")?;
+        builder.append_path_with_name(PROJECT_ROOT.join("resources/mpdris.service.local"), "mpdris.service.local")?;
+        builder.append_path_with_name(PROJECT_ROOT.join("resources/sample.mpdris.conf"), "sample.mpdris.conf")?;
+        builder.append_path_with_name(PROJECT_ROOT.join("README.md"), "README.md")?;
+        builder.append_path_with_name(PROJECT_ROOT.join("LICENSE"), "LICENSE")?;
+        builder.append_dir_all("man", &mandir)?;
+
+        let archive = builder.into_inner()?;
+        t.success();
+
+        let t = Task::new("Compressing archive");
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::new(9));
+        encoder.write_all(&archive)?;
+
+        let compressed = encoder.finish()?;
+        drop(archive);
+        t.success();
+
+        let t = Task::new("Calculating checksums");
+        let binary_hash = hex::encode(Sha256::digest(fs::read(&binary_outpath)?));
+        let archive_hash = hex::encode(Sha256::digest(&compressed));
+        checksums.0.push(format!("{binary_hash} {binary_filename}"));
+        checksums.1.push(format!("{archive_hash} {tarball_filename}"));
+        t.success();
+
+        let t = Task::new("Writing tarball");
+        fs::write(DIST_DIR.join(tarball_filename), compressed).with_context(|| "failed to write compressed archive")?;
+        t.success();
+        println!();
+    }
+
+    let t = Task::new("Writing checksum file");
+    checksums.0.append(&mut checksums.1);
+    fs::write(DIST_DIR.join("SHA256sums.txt"), checksums.0.join("\n").as_bytes())?;
+    t.success();
+
     Ok(())
 }
