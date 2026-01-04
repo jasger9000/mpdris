@@ -2,7 +2,7 @@ use async_std::task::block_on;
 use libc::{EXIT_FAILURE, EXIT_SUCCESS, SIGHUP, SIGQUIT};
 use log::{debug, error, info, warn};
 use std::sync::{Arc, LazyLock, atomic::AtomicBool};
-use std::{env, io, process::exit};
+use std::{env, io, process::exit, path::PathBuf};
 
 use signal_hook::{consts::TERM_SIGNALS, flag, iterator::Signals, low_level::emulate_default_handler};
 

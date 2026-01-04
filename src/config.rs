@@ -168,10 +168,10 @@ impl Config {
 }
 
 fn default_music_dir() -> PathBuf {
-    [&HOME_DIR, "Music"].iter().collect()
+    HOME_DIR.join("Music")
 }
 fn default_cover_dir() -> PathBuf {
-    [&HOME_DIR, "Music", "covers"].iter().collect()
+    HOME_DIR.join("Music/covers")
 }
 fn default_addr() -> IpAddr {
     DEFAULT_ADDR
