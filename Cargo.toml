@@ -29,11 +29,12 @@ simplelog = "0.12.2"
 time = "0.3.37"
 dns-lookup = "2.0.4"
 
+[build-dependencies]
+git2 = { version = "0.20.3", default-features = false }
+
 [profile.release]
 strip = true
 opt-level = "z"
 lto = true
 codegen-units = 1
 
-[build-dependencies]
-git2 = "0.20.0"
