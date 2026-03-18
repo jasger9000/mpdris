@@ -49,10 +49,7 @@ pub fn expand_path(str: &str) -> PathBuf {
             continue;
         }
 
-        let end_idx = rest
-            .chars()
-            .position(|b| !is_valid_varname_char(b))
-            .unwrap_or_else(|| rest.len());
+        let end_idx = rest.chars().position(|b| !is_valid_varname_char(b)).unwrap_or(rest.len());
 
         let varname = &rest[..end_idx];
 
