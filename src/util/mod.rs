@@ -12,11 +12,8 @@ pub mod notify;
 /// Defined as: $XDG_CONFIG_PATH/mpdris/mpdris.conf or $HOME/.config/mpdris/mpdris.conf
 /// Deprecated path: $XDG_CONFIG_PATH/mpd/mpDris.conf or $HOME/.config/mpd/mpDris.conf
 pub fn get_config_path() -> PathBuf {
-    let base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{}/.config", *HOME_DIR));
-    let paths: [PathBuf; 2] = [
-        [base.as_str(), "mpdris", "mpdris.conf"].iter().collect(),
-        [base.as_str(), "mpd", "mpDris.conf"].iter().collect(),
-    ];
+    let base = env::var_os("XDG_CONFIG_HOME").map_or_else(|| HOME_DIR.join(".config"), PathBuf::from);
+    let paths = [base.join("mpdris/mpdris.conf"), base.join("mpd/mpDris.conf")];
     let idx = paths.iter().position(|p| p.is_file()).unwrap_or(0);
     if idx == 1 {
         warn!("Using deprecated configuration path `{}`", paths[idx].display());

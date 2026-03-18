@@ -920,7 +920,6 @@ dependencies = [
  "libc",
  "libloading",
  "log",
- "once_cell",
  "serde",
  "signal-hook",
  "simplelog",
