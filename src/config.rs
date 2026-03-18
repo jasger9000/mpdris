@@ -143,7 +143,7 @@ impl Config {
                         "Could not resolve the $MPD_HOST environment variable into an IP address.",
                     )
                 })?
-                .pop()
+                .next()
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Could not resolve $MPD_HOST"))?;
         }
 
