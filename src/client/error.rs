@@ -220,7 +220,7 @@ impl Error {
         let mut begin = 0;
         // ACK [error@command_listNum] {current_command} message_text
 
-        for (i, chr) in output.chars().enumerate() {
+        for (i, chr) in output.char_indices() {
             match state {
                 FindACK => {
                     let ack = "ACK";
