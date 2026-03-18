@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::{env, fs::Permissions, io::Write, os::unix::fs::PermissionsExt, process::Command, sync::Arc};
 
+use crate::args::InstallTask;
 use crate::{DIST_DIR, NAME, PROJECT_ROOT, TARGET_DIR, Task, build_man};
 use anyhow::{Context, Result, anyhow};
 use flate2::{Compression, write::GzEncoder};
@@ -92,22 +93,23 @@ pub(crate) fn build(path: Option<PathBuf>, arch: &str) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn install(path: Option<PathBuf>, arch: &str) -> Result<()> {
-    let outdir = path.unwrap_or(DIST_DIR.join(arch));
+pub(crate) fn install(task: InstallTask) -> Result<()> {
+    let outdir = task.path.unwrap_or(DIST_DIR.join(&task.arch));
 
-    install_create_dirs(&outdir).with_context(|| "Failed to create dist directory structure")?;
-    install_copy_files(&outdir, arch).with_context(|| "Failed to copy assets to install dir")?;
+    println!("Creating install with pkgname: {}", task.pkgname);
+    install_create_dirs(&outdir, &task.pkgname).with_context(|| "Failed to create dist directory structure")?;
+    install_copy_files(&outdir, &task.arch, &task.pkgname).with_context(|| "Failed to copy assets to install dir")?;
 
     Ok(())
 }
 
-fn install_create_dirs(outdir: &Path) -> Result<()> {
+fn install_create_dirs(outdir: &Path, pkgname: &str) -> Result<()> {
     let t = Task::new("Creating directory structure");
     fs::create_dir_all(outdir)?;
     fs::create_dir_all(outdir.join("usr/bin"))?;
     fs::create_dir_all(outdir.join("usr/lib/systemd/user"))?;
-    fs::create_dir_all(outdir.join(format!("usr/share/doc/{NAME}")))?;
-    fs::create_dir_all(outdir.join(format!("usr/share/licenses/{NAME}")))?;
+    fs::create_dir_all(outdir.join(format!("usr/share/doc/{pkgname}")))?;
+    fs::create_dir_all(outdir.join(format!("usr/share/licenses/{pkgname}")))?;
     fs::create_dir_all(outdir.join("usr/share/man"))?;
 
     t.success();
@@ -115,13 +117,13 @@ fn install_create_dirs(outdir: &Path) -> Result<()> {
 }
 
 #[rustfmt::skip]
-fn install_copy_files(outdir: &Path, arch: &str) -> Result<()> {
+fn install_copy_files(outdir: &Path, arch: &str, pkgname: &str) -> Result<()> {
     let t = Task::new("Copying files to dist");
     cp!(&DIST_DIR, outdir, "{NAME}_{arch}-linux-gnu", "usr/bin/{NAME}", 0o755)?;
     cp!(outdir, "resources/mpdris.service", "usr/lib/systemd/user/mpdris.service", 0o644)?;
-    cp!(outdir, "resources/sample.mpdris.conf", "usr/share/doc/{NAME}/sample.mpdris.conf", 0o644)?;
-    cp!(outdir, "README.md", "usr/share/doc/{NAME}/README.md", 0o644)?;
-    cp!(outdir, "LICENSE", "usr/share/licenses/{NAME}/LICENSE", 0o644)?;
+    cp!(outdir, "resources/sample.mpdris.conf", "usr/share/doc/{pkgname}/sample.mpdris.conf", 0o644)?;
+    cp!(outdir, "README.md", "usr/share/doc/{pkgname}/README.md", 0o644)?;
+    cp!(outdir, "LICENSE", "usr/share/licenses/{pkgname}/LICENSE", 0o644)?;
     cp!(DIST_DIR, outdir, "man", "usr/share/man")?;
 
     t.success();

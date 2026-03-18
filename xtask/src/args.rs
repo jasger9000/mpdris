@@ -1,6 +1,8 @@
-use std::{env, path::PathBuf};
+use std::{borrow::Cow, env, path::PathBuf};
 
 use argh::FromArgs;
+
+use crate::NAME;
 
 /// XTasks
 #[derive(FromArgs)]
@@ -52,6 +54,10 @@ pub(crate) struct InstallTask {
     #[argh(option, default = "env::consts::ARCH.to_string()")]
     /// the arch to compile for
     pub(crate) arch: String,
+    #[argh(option, default = "default_pkgname()", from_str_fn(to_cow))]
+    /// the package name that gets installed, used for directory paths. Does not affect binary name
+    /// Defaults to $pkgname if set or "mpdris" if not. Panics if $pkgname is not Unicode
+    pub(crate) pkgname: Cow<'static, str>,
     #[argh(positional)]
     /// path to install the files to instead of target/dist/<arch>
     pub(crate) path: Option<PathBuf>,
@@ -66,3 +72,17 @@ pub(crate) struct CleanTask {}
 /// Create release assets (tarballs, binaries and SHA256 checksums) for x86_64, aarch64, i68
 #[argh(subcommand, name = "make-release-assets", help_triggers("-h", "--help"))]
 pub(crate) struct ReleaseTask {}
+
+fn default_pkgname() -> Cow<'static, str> {
+    env::var("pkgname").map_or_else(
+        |e| match e {
+            env::VarError::NotPresent => Cow::Borrowed(NAME),
+            env::VarError::NotUnicode(_) => panic!("$pkgname set, but contains non-unicode values"),
+        },
+        |s| Cow::Owned(s),
+    )
+}
+
+fn to_cow(v: &str) -> Result<Cow<'static, str>, String> {
+    Ok(Cow::Owned(v.to_string()))
+}

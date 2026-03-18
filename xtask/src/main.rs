@@ -40,7 +40,7 @@ fn try_main() -> Result<()> {
     match args.task {
         Man(task) => build_man(&task.dir),
         Build(task) => build(task.path, &task.arch),
-        Install(task) => install(task.path, &task.arch),
+        Install(task) => install(task),
         CleanDist(..) => clean_dist(),
         MakeRelease(..) => make_release_assets(),
     }
