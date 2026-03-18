@@ -19,11 +19,11 @@ fn main() {
 
         if let Ok(head) = repo.head() {
             // add the ref that HEAD points to to rerun-if
-            if let Ok(pointer) = head.resolve() {
-                if let Some(name) = pointer.name() {
-                    let path = repo.path().join(name);
-                    println!("cargo::rerun-if-changed={}", path.display());
-                }
+            if let Ok(pointer) = head.resolve()
+                && let Some(name) = pointer.name()
+            {
+                let path = repo.path().join(name);
+                println!("cargo::rerun-if-changed={}", path.display());
             }
 
             // emit the git hash if not overriden

@@ -114,11 +114,11 @@ impl Song {
 
             vec.push(c.cover_directory.join(&*self.uri));
             // Music/Celeste/Resurrections.mp3 -> covers/Celeste
-            if let Some(p) = self.uri.parent() {
-                if p.parent().is_some() {
-                    // p.parent() is none if p = ""
-                    vec.push(c.cover_directory.join(p));
-                }
+            if let Some(p) = self.uri.parent()
+                && p.parent().is_some()
+            {
+                // p.parent() is none if p = ""
+                vec.push(c.cover_directory.join(p));
             }
 
             vec.push(c.music_directory.join(&*self.uri));

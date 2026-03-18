@@ -225,7 +225,7 @@ impl PlayerInterface {
     }
 
     #[zbus(property)]
-    async fn metadata(&self) -> HashMap<&str, Value> {
+    async fn metadata(&self) -> HashMap<&str, Value<'_>> {
         let s = self.status.read().await;
         let c = config().read().await;
 
